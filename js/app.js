@@ -83,6 +83,7 @@ const defaultState = () => ({
   words: {}, daily: {}, goal: 30,
   sound: true, theme: 'auto',
   achievements: {}, tab: 'learn', onboarded: false, placement: null,
+  srs: {}, mistakes: {},
 });
 
 let S = load();
@@ -102,11 +103,55 @@ function checkStreak() {
 }
 const todayXp = () => S.daily[dayKey()] || 0;
 const wordsLearned = () => Object.values(S.words).filter(w => w.c > 0).length;
-function strength(en) {
-  const w = S.words[en.toLowerCase()];
-  if (!w || !w.c) return 0;
-  return clamp(Math.round(1 + w.c / 2 - w.w), 1, 4);
+// ---------- Aralıklı tekrar (Leitner kutuları) ----------
+// Kutu 0–5; doğru cevap kelimeyi bir üst kutuya taşır (günde en fazla bir kez),
+// yanlış cevap en başa döndürür. Tekrar aralıkları gün cinsinden:
+const SRS_DAYS = [0, 1, 3, 7, 14, 30];
+const dayNum = (d = new Date()) => Math.floor((d.getTime() - d.getTimezoneOffset() * 60000) / 86400000);
+function srsUpdate(en, ok) {
+  const k = en.toLowerCase(), today = dayNum();
+  const c = S.srs[k] || { b: 0, d: today, l: -1 };
+  if (ok) {
+    if (c.l !== today) c.b = Math.min(5, c.b + 1);
+    c.d = today + SRS_DAYS[Math.max(1, c.b)];
+  } else {
+    c.b = 0; c.d = today;
+  }
+  c.l = today;
+  S.srs[k] = c;
 }
+function srsOf(en) {
+  const k = en.toLowerCase();
+  if (S.srs[k]) return S.srs[k];
+  // Eski kayıtlar: görülmüş ama tekrar bilgisi olmayan kelimeler bugün tekrar edilir
+  return S.words[k] ? { b: 1, d: dayNum(), l: -1 } : null;
+}
+function dueWords() {
+  const today = dayNum();
+  return learnedContent().words.filter(w => { const c = srsOf(w.en); return c && c.d <= today; })
+    .sort((a, b) => srsOf(a.en).d - srsOf(b.en).d);
+}
+function dueLabel(en) {
+  const c = srsOf(en);
+  if (!c) return '';
+  const diff = c.d - dayNum();
+  return diff <= 0 ? 'bugün' : diff === 1 ? 'yarın' : `${diff} gün sonra`;
+}
+function strength(en) {
+  const c = srsOf(en);
+  if (!c) return 0;
+  return [1, 1, 2, 3, 4, 4][c.b];
+}
+
+// ---------- Hata defteri ----------
+function recordMistake(src, why) {
+  const k = norm(src.en, 'en');
+  const m = S.mistakes[k] || { ...src, fix: 0, n: 0 };
+  m.n++; m.fix = 0; m.t = Date.now();
+  if (why) m.why = why.replace(/^💡\s*/, '');
+  S.mistakes[k] = m;
+}
+const mistakeList = () => Object.values(S.mistakes).sort((a, b) => b.t - a.t);
 function applyTheme() {
   if (S.theme === 'auto') document.documentElement.removeAttribute('data-theme');
   else document.documentElement.setAttribute('data-theme', S.theme);
@@ -199,9 +244,24 @@ function lessonContent(ui, li) {
 const allDialogs = () => UNITS.flatMap(u => u.dialogs);
 const allSentences = () => UNITS.flatMap(u => u.sentences);
 
-// Bir cümlenin dilbilgisi, kelime ya da kelime sırası bozulmuş "tuzak" versiyonlarını üretir
+// Bir cümlenin dilbilgisi, kelime ya da kelime sırası bozulmuş "tuzak" versiyonlarını
+// üretir. Her tuzak, neden yanlış olduğunu anlatan bir açıklamayla birlikte gelir.
 const GRAMMAR_FLIP = { is: 'are', are: 'is', am: 'is', do: 'does', does: 'do', has: 'have', have: 'has', was: 'were', were: 'was', an: 'a', a: 'an', in: 'on', on: 'in', at: 'in', to: 'at', my: 'your', your: 'my', will: 'did', did: 'will', this: 'these', these: 'this' };
+const FLIP_WHY = [
+  [['is', 'are', 'am'], () => "'to be' özneye göre seçilir: I → am, he/she/it ve tekil isimler → is, you/we/they ve çoğul isimler → are."],
+  [['do', 'does'], () => "'does' he/she/it ile, 'do' I/you/we/they ile kullanılır."],
+  [['has', 'have'], () => "'has' he/she/it ile, 'have' I/you/we/they ile kullanılır."],
+  [['was', 'were'], () => "'was' I/he/she/it ile, 'were' you/we/they ile kullanılır."],
+  [['a', 'an'], () => "'an' sesli harfle başlayan kelimelerden önce (an apple), 'a' sessiz harfle başlayanlardan önce (a table) gelir."],
+  [['in', 'on', 'at', 'to'], orig => `Bu kalıpta doğru edat '${orig}'. Edatlar kalıp olarak öğrenilir: in the morning, on holiday, at seven, go to school.`],
+  [['my', 'your'], () => "'my' = benim, 'your' = senin/sizin. Bu kelime cümlenin anlamını değiştiriyor."],
+  [['will', 'did'], () => "'will' gelecek zamanı, 'did' geçmiş zamanı bildirir. Türkçe cümlenin zamanına dikkat et."],
+  [['this', 'these'], () => "'this' tekil (bu), 'these' çoğul (bunlar) isimlerle kullanılır."],
+];
+const flipWhy = orig => { const g = FLIP_WHY.find(([ws]) => ws.includes(orig.toLowerCase())); return g ? g[1](orig.toLowerCase()) : ''; };
+const SWAP_WHY = 'Kelime sırası yanlış. İngilizcede temel sıra özne + fiil + nesnedir; soru cümlelerinde yardımcı fiil başa gelir.';
 const capFirst = w => w.charAt(0).toUpperCase() + w.slice(1);
+const findWord = en => allWords().find(w => norm(w.en, 'en') === norm(en, 'en'));
 function sentenceVariants(en, answers, wordPool) {
   const m = en.match(/^(.*?)([.!?]*)$/);
   const core = m[1].split(' '), end = m[2];
@@ -211,45 +271,59 @@ function sentenceVariants(en, answers, wordPool) {
   core.forEach((w, i) => {
     const bareW = w.replace(/,$/, ''), comma = w.endsWith(',') ? ',' : '';
     const flip = GRAMMAR_FLIP[bareW.toLowerCase()];
-    if (flip) { const c = [...core]; c[i] = flip + comma; grammar.push(build(c)); }
-    if (vocab.some(x => norm(x.en, 'en') === norm(bareW, 'en'))) {
+    if (flip) { const c = [...core]; c[i] = flip + comma; grammar.push({ text: build(c), why: flipWhy(bareW) }); }
+    const origWord = vocab.find(x => norm(x.en, 'en') === norm(bareW, 'en'));
+    if (origWord) {
       const other = pickOne(vocab.filter(x => norm(x.en, 'en') !== norm(bareW, 'en')));
-      if (other) { const c = [...core]; c[i] = other.en + comma; words.push(build(c)); }
+      if (other) {
+        const c = [...core]; c[i] = other.en + comma;
+        words.push({ text: build(c), why: `'${other.en}' = ${firstTr(other.tr)}. Bu cümlede '${origWord.en}' (${firstTr(origWord.tr)}) olmalı.` });
+      }
     }
   });
   for (let i = 0; i < core.length - 1; i++) {
     if (/,$/.test(core[i]) || /,$/.test(core[i + 1])) continue;
     const c = core.map((w, k) => (k === 0 && !keepCase(w)) ? w.toLowerCase() : w);
     [c[i], c[i + 1]] = [c[i + 1], c[i]];
-    swaps.push(build(c));
+    swaps.push({ text: build(c), why: SWAP_WHY });
   }
   const seen = new Set(answers.map(a => norm(a, 'en')));
-  const uniq = list => shuffle(list).filter(v => { const k = norm(v, 'en'); if (seen.has(k)) return false; seen.add(k); return true; });
+  const uniq = list => shuffle(list).filter(v => { const k = norm(v.text, 'en'); if (seen.has(k)) return false; seen.add(k); return true; });
   // Önce dilbilgisi ve kelime tuzakları, sonra kelime sırası
   return [...uniq(grammar), ...uniq(words), ...uniq(swaps)].slice(0, 4);
 }
+// Seçenek listesinden egzersiz alanlarını kurar: options (metin), reasons (yanlışların açıklaması)
+function withOptions(list, correctItem) {
+  const sh = shuffle(list);
+  return { options: sh.map(o => o.text), reasons: sh.map(o => o.why || null), correct: sh.indexOf(correctItem) };
+}
+const dialogTr = text => { const d = allDialogs().find(x => x[2] === text); return d ? d[3].replace(/[.!?]+$/, '') : ''; };
 
 const ex = {
   pick(w, pool) {
     const others = distinctWords(pool.filter(o => o.emoji), 2, w);
     const options = shuffle([w, ...others]);
-    return { type: 'pick', prompt: firstTr(w.tr), options, correct: options.indexOf(w), answerText: w.en, words: [w.en] };
+    return { type: 'pick', prompt: firstTr(w.tr), options, correct: options.indexOf(w), answerText: w.en, words: [w.en],
+      reasons: options.map(o => o === w ? null : `“${o.en}” = ${firstTr(o.tr)}`) };
   },
   choice(w, pool) {
     const others = distinctWords(pool, 3, w);
     const options = shuffle([w, ...others]);
-    return { type: 'choice', word: w, options: options.map(o => firstTr(o.tr)), correct: options.indexOf(w), answerText: firstTr(w.tr), words: [w.en] };
+    return { type: 'choice', word: w, options: options.map(o => firstTr(o.tr)), correct: options.indexOf(w), answerText: firstTr(w.tr), words: [w.en],
+      reasons: options.map(o => o === w ? null : `“${firstTr(o.tr)}” İngilizcede “${o.en}” demektir.`) };
   },
   choiceRev(w, pool) {
     const others = distinctWords(pool, 3, w);
     const options = shuffle([w, ...others]);
-    return { type: 'choiceRev', prompt: firstTr(w.tr), options: options.map(o => o.en), correct: options.indexOf(w), answerText: w.en, words: [w.en] };
+    return { type: 'choiceRev', prompt: firstTr(w.tr), options: options.map(o => o.en), correct: options.indexOf(w), answerText: w.en, words: [w.en],
+      reasons: options.map(o => o === w ? null : `“${o.en}” = ${firstTr(o.tr)}`) };
   },
   // Duyduğun kelimenin anlamını seç
   listenWord(w, pool) {
     pool = pool || UNITS.find(u => u.words.includes(w)).words;
     const options = shuffle([w, ...distinctWords(pool, 3, w)]);
-    return { type: 'listenWord', audio: w.en, options: options.map(o => firstTr(o.tr)), correct: options.indexOf(w), answerText: `${w.en} = ${firstTr(w.tr)}`, words: [w.en] };
+    return { type: 'listenWord', audio: w.en, options: options.map(o => firstTr(o.tr)), correct: options.indexOf(w), answerText: `${w.en} = ${firstTr(w.tr)}`, words: [w.en],
+      reasons: options.map(o => o === w ? null : `Seçtiğin “${firstTr(o.tr)}” İngilizcede “${o.en}” demektir.`) };
   },
   match(words, pool) {
     let list = sample(words, 5);
@@ -276,7 +350,7 @@ const ex = {
     const tiles = shuffle([...ans, ...extra.slice(0, nDist)]);
     return {
       type: kind, dir, prompt: dir === 'en' ? s.tr : s.en, audio: s.en, tiles, answers, lang,
-      answerText: target, meaning: kind === 'listen' ? s.tr : null, words: wordsIn(s.en, wordPool),
+      answerText: target, meaning: kind === 'listen' ? s.tr : null, words: wordsIn(s.en, wordPool), src: { en: s.en, tr: s.tr },
     };
   },
   fill(s, wordPool) {
@@ -287,14 +361,16 @@ const ex = {
     if (idx < 0) return null;
     const blank = toks[idx];
     const bl = norm(blank, 'en');
-    const distract = sample(allWords().filter(w => !w.en.includes(' ') && norm(w.en, 'en') !== bl && !toks.some(t => norm(t, 'en') === norm(w.en, 'en'))), 3).map(w => w.en);
+    const distractW = sample(allWords().filter(w => !w.en.includes(' ') && norm(w.en, 'en') !== bl && !toks.some(t => norm(t, 'en') === norm(w.en, 'en'))), 3);
     const shownBlank = idx === 0 && !keepCase(blank) ? blank.toLowerCase() : blank;
-    const options = shuffle([shownBlank, ...distract]);
+    const right = { text: shownBlank };
+    const fw = findWord(blank);
+    const { options, reasons, correct } = withOptions([right, ...distractW.map(w => ({ text: w.en, why: `“${w.en}” = ${firstTr(w.tr)}. Doğru kelime “${shownBlank}”${fw ? ` (${firstTr(fw.tr)})` : ''}.` }))], right);
     // Cümleyi noktalama işaretleriyle birlikte göster
     const raw = s.en.split(/\s+/);
     return {
-      type: 'fill', parts: raw, blankIdx: idx, options, correct: options.indexOf(shownBlank),
-      hint: s.tr, audio: s.en, answerText: s.en, words: wordsIn(s.en, wordPool),
+      type: 'fill', parts: raw, blankIdx: idx, options, reasons, correct,
+      hint: s.tr, audio: s.en, answerText: s.en, words: wordsIn(s.en, wordPool), src: { en: s.en, tr: s.tr },
     };
   },
   // Diyalog: karşı tarafın sözüne uygun cevabı seç
@@ -306,28 +382,31 @@ const ex = {
     opts.push(...pickFrom(allDialogs().filter(x => !unitDialogs.includes(x)), 3 - opts.length, opts));
     if (opts.length < 3) opts.push(...pickFrom(unitDialogs, 3 - opts.length, opts));
     const options = shuffle(opts);
-    return { type: 'reply', q, qtr: showHint ? qtr : null, options, correct: options.indexOf(a), answerText: a, meaning: atr, audio: a, words: [] };
+    return { type: 'reply', q, qtr: showHint ? qtr : null, options, correct: options.indexOf(a), answerText: a, meaning: atr, audio: a, words: [],
+      reasons: options.map(o => o === a ? null : `“${o}” = ${dialogTr(o)}. Bu, “${q}” sorusuna uygun bir cevap değil.`),
+      src: { en: a, tr: atr, q, qtr } };
   },
   // Türkçe cümlenin doğru çevirisini seç (yanlışlardan biri "tuzak" cümle)
   sentChoice(s, wordPool) {
     const answers = [s.en, ...(s.altEn || [])];
     const traps = sentenceVariants(s.en, answers, wordPool);
-    const others = shuffle(allSentences().filter(o => o !== s && !answers.some(a => norm(a, 'en') === norm(o.en, 'en')))).map(o => o.en);
-    const opts = [s.en, ...traps.slice(0, 1)];
+    const others = shuffle(allSentences().filter(o => o.en !== s.en && !answers.some(a => norm(a, 'en') === norm(o.en, 'en'))))
+      .map(o => ({ text: o.en, why: `Bu cümle farklı bir anlama geliyor: “${o.tr}”` }));
+    const right = { text: s.en };
+    const opts = [right, ...traps.slice(0, 1)];
     const rest = shuffle([...traps.slice(1, 3), ...others.slice(0, 2)]);
     while (opts.length < 3 && rest.length) opts.push(rest.shift());
-    const options = shuffle(opts);
-    return { type: 'sentChoice', prompt: s.tr, options, correct: options.indexOf(s.en), answerText: s.en, audio: s.en, words: wordsIn(s.en, wordPool) };
+    return { type: 'sentChoice', prompt: s.tr, ...withOptions(opts, right), answerText: s.en, audio: s.en, words: wordsIn(s.en, wordPool), src: { en: s.en, tr: s.tr } };
   },
   // Duyduğun cümleyi birbirine çok benzeyen seçenekler arasından bul
   listenPick(s, wordPool) {
     const answers = [s.en, ...(s.altEn || [])];
     const traps = sentenceVariants(s.en, answers, wordPool);
-    const others = shuffle(allSentences().filter(o => o !== s)).map(o => o.en);
-    const opts = [s.en, ...traps.slice(0, 2)];
+    const others = shuffle(allSentences().filter(o => o.en !== s.en)).map(o => ({ text: o.en, why: 'Bu cümle hiç okunmadı. Sesi tekrar dinle.' }));
+    const right = { text: s.en };
+    const opts = [right, ...traps.slice(0, 2).map(t => ({ text: t.text, why: `Duyduğun cümle bu değildi. ${t.why}` }))];
     while (opts.length < 3) opts.push(others.shift());
-    const options = shuffle(opts);
-    return { type: 'listenPick', audio: s.en, options, correct: options.indexOf(s.en), answerText: s.en, meaning: s.tr, words: wordsIn(s.en, wordPool) };
+    return { type: 'listenPick', audio: s.en, ...withOptions(opts, right), answerText: s.en, meaning: s.tr, words: wordsIn(s.en, wordPool), src: { en: s.en, tr: s.tr } };
   },
   // Diyalog cümlesini kelime kartlarıyla kur
   replyBuild(d, sentPool, wordPool) {
@@ -452,7 +531,23 @@ function genPractice(kind) {
   const { words, sents, dialogs } = learnedContent();
   const pool = words.length >= 6 ? words : allWords().slice(0, 20);
   const list = [];
-  if (kind === 'dialog') {
+  if (kind === 'review') {
+    // Tekrar zamanı gelen kelimeler (yoksa en zayıflar)
+    let due = dueWords().slice(0, 10);
+    if (due.length < 4) due = due.concat([...words].sort((a, b) => strength(a.en) - strength(b.en)).filter(w => !due.includes(w)).slice(0, 6 - due.length));
+    const kinds = [ex.choice, ex.choiceRev, ex.listenWord];
+    due.forEach((w, i) => list.push(w.emoji && i % 4 === 3 ? ex.pick(w, pool) : kinds[i % 3](w, pool)));
+    if (due.length >= 4) list.push(ex.match(due, pool));
+    const ss = shuffle(sents.filter(s => due.some(w => wordsIn(s.en, [w]).length))).slice(0, 3);
+    ss.forEach((s, i) => list.push(i % 2 ? ex.sentChoice(s, pool) : ex.build(s, sents, pool, 'en')));
+    return list;
+  } else if (kind === 'mistakes') {
+    const ws = allWords();
+    mistakeList().slice(0, 10).forEach((m, i) => {
+      if (m.q) list.push(i % 2 ? ex.reply([m.q, m.qtr, m.en, m.tr], allDialogs(), false) : ex.replyBuild([m.q, m.qtr, m.en, m.tr], allSentences(), ws));
+      else list.push(i % 2 ? ex.sentChoice(m, ws) : ex.build(m, allSentences(), ws, 'en'));
+    });
+  } else if (kind === 'dialog') {
     sample(dialogs, 7).forEach(d => list.push(ex.reply(d, dialogs, false)));
     sample(dialogs, 3).forEach(d => list.push(ex.replyBuild(d, sents, pool)));
   } else if (kind === 'write') {
@@ -553,6 +648,12 @@ function rightbar() {
       <div class="bar"><div style="width:${goalPct}%"></div></div>
       <div class="bar-label"><span>${todayXp()} / ${S.goal} XP</span><span>${goalPct >= 100 ? '✅ Tamamlandı' : '🎯'}</span></div>
     </div>
+    ${S.progress > 0 ? `<div class="panel">
+      <div class="panel-row"><div class="big-emoji">🧠</div><div>
+        <h3 style="margin:0">${dueWords().length} kelime tekrar bekliyor</h3>
+        <div class="muted">${Object.keys(S.mistakes).length} cümle hata defterinde</div>
+      </div></div>
+    </div>` : ''}
     ${wod ? `<div class="panel">
       <h3>Günün kelimesi</h3>
       <div class="panel-row"><div class="big-emoji">${wod.emoji || '💬'}</div>
@@ -572,9 +673,16 @@ function bindWordOfDay() { $$('[data-wod]').forEach(b => b.addEventListener('cli
 // ---------- Öğren sekmesi (ders yolu) ----------
 const PATH_OFFSETS = [0, 56, 82, 46];
 
+function reviewCard() {
+  if (S.progress <= 0) return '';
+  const due = dueWords().length;
+  if (!due) return `<div class="review-card done"><div class="rc-icon">🧠</div><div class="rc-text"><b>Tekrarların tamam!</b><span>Kelimelerin hafızanda taze. Yeni bir ders yapabilirsin.</span></div></div>`;
+  return `<div class="review-card"><div class="rc-icon">🧠</div><div class="rc-text"><b>Tekrar zamanı: ${due} kelime</b><span>Bu kelimeler unutulmak üzere. 2 dakikada tazele.</span></div><button class="btn gold sm" data-review>TEKRAR ET</button></div>`;
+}
+
 function renderLearn() {
   const page = $('#page');
-  let html = '';
+  let html = reviewCard();
   UNITS.forEach((u, ui) => {
     const unitLocked = ui * LPU > S.progress;
     const mirror = ui % 2 ? -1 : 1;
@@ -614,6 +722,7 @@ function renderLearn() {
   page.innerHTML = html;
 
   $$('[data-guide]', page).forEach(b => b.addEventListener('click', () => showGuide(+b.dataset.guide)));
+  $$('[data-review]', page).forEach(b => b.addEventListener('click', () => startPractice('review')));
   $$('[data-test]', page).forEach(b => b.addEventListener('click', () => showTestIntro(+b.dataset.test)));
   $$('[data-node]', page).forEach(b => b.addEventListener('click', e => { e.stopPropagation(); toggleNodePop(b); }));
 
@@ -685,6 +794,8 @@ function renderPractice() {
     </div></div>
     ${ready ? '' : '<p class="locked-note" style="margin-bottom:14px">Pratik yapabilmek için önce ilk dersini tamamla.</p>'}
     <div class="practice-grid">
+      <button class="practice-card featured" data-prac="review" ${ready ? '' : 'disabled'}><div class="pi">🧠</div><div><h3>Akıllı tekrar</h3><p>${ready ? `${dueWords().length} kelimenin tekrar zamanı geldi.` : 'Ders yaptıkça kelimelerin burada birikir.'} Unutmadan önce tazele.</p></div><span class="reward">+5 XP</span></button>
+      <button class="practice-card" data-notebook ${mistakeList().length ? '' : 'disabled'}><div class="pi">📕</div><div><h3>Hata defteri (${mistakeList().length})</h3><p>${mistakeList().length ? 'Yanlış yaptığın cümleleri gör ve çalış.' : 'Henüz hata yok. Yanlış yaptığın cümleler buraya eklenir.'}</p></div><span class="reward">+5 XP</span></button>
       <button class="practice-card" data-prac="weak" ${ready ? '' : 'disabled'}><div class="pi">🎯</div><div><h3>Zayıf kelimeler</h3><p>En çok zorlandığın kelimeleri tekrar et.</p></div><span class="reward">+5 XP</span></button>
       <button class="practice-card" data-prac="listen" ${ready ? '' : 'disabled'}><div class="pi">🎧</div><div><h3>Dinleme pratiği</h3><p>Duyduğun cümleleri bul ve kur, kulağını alıştır.</p></div><span class="reward">+5 XP</span></button>
       <button class="practice-card" data-prac="match" ${ready ? '' : 'disabled'}><div class="pi">🧩</div><div><h3>Hızlı eşleştirme</h3><p>Kelimeleri anlamlarıyla eşleştir.</p></div><span class="reward">+5 XP</span></button>
@@ -692,6 +803,25 @@ function renderPractice() {
       <button class="practice-card" data-prac="dialog" ${learnedContent().dialogs.length >= 4 ? '' : 'disabled'}><div class="pi">🗣️</div><div><h3>Konuşma simülasyonu</h3><p>Gerçek hayattan diyaloglarda doğru cevabı ver. ${learnedContent().dialogs.length >= 4 ? '' : '(A2 bölümünde açılır)'}</p></div><span class="reward">+5 XP</span></button>
     </div>`;
   $$('[data-prac]').forEach(b => b.addEventListener('click', () => startPractice(b.dataset.prac)));
+  $$('[data-notebook]').forEach(b => b.addEventListener('click', showNotebook));
+}
+
+function showNotebook() {
+  const list = mistakeList();
+  const m = openModal(`
+    <div class="ex-kind">📕 HATA DEFTERİ</div>
+    <h2>${list.length} cümle</h2>
+    <p class="mtext">Bir cümleyi pratikte <b>iki kez</b> doğru yapınca defterden silinir.</p>
+    <div class="modal-actions" style="margin-bottom:16px"><button class="btn ok" data-go>HATALARIMI ÇALIŞ</button></div>
+    ${list.map(x => `<div class="phrase nb"><button class="speaker mini" data-say="${esc(x.en)}" aria-label="Dinle">${ICON.speaker}</button><div style="flex:1;min-width:0">
+      ${x.q ? `<div class="ptr">— ${esc(x.q)}</div>` : ''}
+      <div class="pen">${esc(x.en)}</div><div class="ptr">${esc(x.tr)}</div>
+      ${x.why ? `<div class="nb-why">💡 ${esc(x.why)}</div>` : ''}
+    </div>${x.n > 1 ? `<span class="nb-count" title="Yanlış sayısı">×${x.n}</span>` : ''}</div>`).join('')}
+    <div class="modal-actions" style="margin-top:16px"><button class="btn ghost" data-close>KAPAT</button></div>`);
+  $$('[data-say]', m).forEach(b => b.addEventListener('click', () => speak(b.dataset.say)));
+  $('[data-close]', m).addEventListener('click', closeModal);
+  $('[data-go]', m).addEventListener('click', () => startPractice('mistakes'));
 }
 
 // ---------- Kelimeler sekmesi ----------
@@ -711,7 +841,7 @@ function renderWords() {
         ${ws.map(w => {
           const st = strength(w.en);
           return `<div class="word-row"><div class="we">${w.emoji || '💬'}</div>
-            <div class="wt"><div class="wen">${esc(w.en)}</div><div class="wtr">${esc(altsOf(w.tr).join(', '))}</div></div>
+            <div class="wt"><div class="wen">${esc(w.en)}</div><div class="wtr">${esc(altsOf(w.tr).join(', '))}${dueLabel(w.en) ? ` · 🔁 ${dueLabel(w.en)}` : ''}</div></div>
             <div class="strength" title="Güç: ${st}/4">${[1, 2, 3, 4].map(i => `<i class="${i <= st ? 'on' : ''}"></i>`).join('')}</div>
             <button class="speaker mini" data-say="${esc(w.en)}" aria-label="Dinle">${ICON.speaker}</button></div>`;
         }).join('')}
@@ -786,8 +916,10 @@ function startLesson(ui, li) {
   startSession({ mode: 'lesson', ui, li, g, exercises: genLesson(ui, li), replay: g < S.progress });
 }
 function startPractice(kind) {
-  if (S.progress <= 0) { toast('Önce ilk dersini tamamla!'); return; }
-  startSession({ mode: 'practice', kind, exercises: genPractice(kind) });
+  if (S.progress <= 0 && kind !== 'mistakes') { toast('Önce ilk dersini tamamla!'); return; }
+  const exercises = genPractice(kind);
+  if (!exercises.length) { toast('Şu an çalışılacak bir şey yok.'); return; }
+  startSession({ mode: 'practice', kind, exercises });
 }
 
 function startSession(cfg) {
@@ -905,6 +1037,7 @@ function markWords(list, ok) {
     const k = en.toLowerCase();
     const w = S.words[k] || (S.words[k] = { c: 0, w: 0 });
     if (ok) w.c++; else w.w++;
+    srsUpdate(en, ok);
   });
 }
 
@@ -931,6 +1064,10 @@ function handleResult(r) {
 
   if (r.correct) {
     L.done++; L.combo++; L.maxCombo = Math.max(L.maxCombo, L.combo);
+    if (L.kind === 'mistakes' && e.src) {
+      const k = norm(e.src.en, 'en'), m = S.mistakes[k];
+      if (m && ++m.fix >= 2) delete S.mistakes[k];
+    }
     foot.className = 'lesson-foot correct';
     check.className = 'btn ok';
     const body = [r.note, e.meaning ? `Anlamı: ${esc(e.meaning)}` : ''].filter(Boolean).join('<br>');
@@ -943,6 +1080,7 @@ function handleResult(r) {
     }
   } else {
     L.mistakes++; L.combo = 0;
+    if (e.src && !r.skipped) { recordMistake(e.src, r.note); L.newMistakes = (L.newMistakes || 0) + 1; }
     foot.className = 'lesson-foot wrong';
     check.className = 'btn bad';
     const body = `<b>${esc(e.answerText)}</b>${e.meaning ? `<small>Anlamı: ${esc(e.meaning)}</small>` : ''}${r.note ? `<small>${r.note}</small>` : ''}`;
@@ -1031,11 +1169,12 @@ function finish() {
   save();
 
   sfx.win();
-  const mode = L.mode, ui = L.ui;
+  const mode = L.mode, ui = L.ui, newMistakes = L.newMistakes || 0;
   L = null;
   const extras = [];
   if (streakUp) extras.push(`<div class="panel"><div class="big-emoji">🔥</div><div><b>${S.streak} günlük seri!</b><div class="muted">Yarın da gel, seriyi koru.</div></div></div>`);
   if (goalNow) extras.push(`<div class="panel"><div class="big-emoji">🎯</div><div><b>Günlük hedef tamamlandı!</b><div class="muted">Bugün ${todayXp()} XP kazandın.</div></div></div>`);
+  if (newMistakes) extras.push(`<div class="panel"><div class="big-emoji">📕</div><div><b>${newMistakes} cümle hata defterine eklendi</b><div class="muted">Pratik sekmesinden tekrar çalışabilirsin.</div></div></div>`);
   if (testPassed) extras.push(`<div class="panel"><div class="big-emoji">🚀</div><div><b>${testPassed.level} seviyesi açıldı!</b><div class="muted">${esc(testPassed.title)} bölümünden devam edebilirsin.</div></div></div>`);
   if (unitDone) extras.push(`<div class="panel"><div class="big-emoji">🏆</div><div><b>${esc(UNITS[ui].title)} ünitesi bitti!</b><div class="muted">${ui + 1 < UNITS.length ? `Sıradaki: ${esc(UNITS[ui + 1].title)}` : 'Tüm üniteleri tamamladın!'}</div></div></div>`);
   unlocked.forEach(a => extras.push(`<div class="panel"><div class="big-emoji">${a.icon}</div><div><b>Yeni başarım: ${esc(a.title)}</b><div class="muted">${esc(a.desc)}</div></div></div>`));
@@ -1088,6 +1227,11 @@ function bindOptions(root, selector, onPick) {
   }));
   return btns;
 }
+function optResult(e, sel) {
+  const correct = sel === e.correct;
+  const why = !correct && e.reasons && e.reasons[sel];
+  return { correct, note: why ? `💡 ${esc(why)}` : undefined };
+}
 function markOptions(btns, sel, correct) {
   btns[correct] && btns[correct].classList.add('is-correct');
   if (sel !== correct && btns[sel]) btns[sel].classList.add('is-wrong');
@@ -1099,7 +1243,7 @@ R.pick = (e, root) => {
     <div class="cards">${e.options.map((o, i) => `<button class="card-opt" data-key><span class="kbd">${i + 1}</span><span class="card-emoji">${o.emoji}</span><span>${esc(o.en)}</span></button>`).join('')}</div>`;
   let sel = -1;
   const btns = bindOptions(root, '.card-opt', i => { sel = i; speak(e.options[i].en); api.ready(true); });
-  L.evaluate = () => { markOptions(btns, sel, e.correct); return { correct: sel === e.correct }; };
+  L.evaluate = () => { markOptions(btns, sel, e.correct); return optResult(e, sel); };
 };
 
 R.choice = (e, root) => {
@@ -1111,7 +1255,7 @@ R.choice = (e, root) => {
   speak(e.word.en);
   let sel = -1;
   const btns = bindOptions(root, '.opt', i => { sel = i; api.ready(true); });
-  L.evaluate = () => { markOptions(btns, sel, e.correct); return { correct: sel === e.correct }; };
+  L.evaluate = () => { markOptions(btns, sel, e.correct); return optResult(e, sel); };
 };
 
 R.choiceRev = (e, root) => {
@@ -1120,7 +1264,7 @@ R.choiceRev = (e, root) => {
     <div class="opts">${e.options.map((o, i) => `<button class="opt" data-key><span class="kbd">${i + 1}</span>${esc(o)}</button>`).join('')}</div>`;
   let sel = -1;
   const btns = bindOptions(root, '.opt', i => { sel = i; speak(e.options[i]); api.ready(true); });
-  L.evaluate = () => { markOptions(btns, sel, e.correct); return { correct: sel === e.correct }; };
+  L.evaluate = () => { markOptions(btns, sel, e.correct); return optResult(e, sel); };
 };
 
 function tileExercise(e, root, header) {
@@ -1192,7 +1336,7 @@ R.fill = (e, root) => {
     <div class="pills">${e.options.map((o, i) => `<button class="pill" data-key><span class="kbd">${i + 1}</span>${esc(o)}</button>`).join('')}</div>`;
   let sel = -1;
   const btns = bindOptions(root, '.pill', i => { sel = i; $('#blank', root).textContent = e.options[i]; api.ready(true); });
-  L.evaluate = () => { markOptions(btns, sel, e.correct); return { correct: sel === e.correct }; };
+  L.evaluate = () => { markOptions(btns, sel, e.correct); return optResult(e, sel); };
 };
 
 R.reply = (e, root) => {
@@ -1208,7 +1352,7 @@ R.reply = (e, root) => {
   setTimeout(() => speak(e.q), 200);
   let sel = -1;
   const btns = bindOptions(root, '.opt', i => { sel = i; speak(e.options[i]); api.ready(true); });
-  L.evaluate = () => { markOptions(btns, sel, e.correct); return { correct: sel === e.correct }; };
+  L.evaluate = () => { markOptions(btns, sel, e.correct); return optResult(e, sel); };
 };
 
 R.sentChoice = (e, root) => {
@@ -1218,7 +1362,7 @@ R.sentChoice = (e, root) => {
     <div class="opts">${e.options.map((o, i) => `<button class="opt" data-key><span class="kbd">${i + 1}</span>${esc(o)}</button>`).join('')}</div>`;
   let sel = -1;
   const btns = bindOptions(root, '.opt', i => { sel = i; api.ready(true); });
-  L.evaluate = () => { markOptions(btns, sel, e.correct); return { correct: sel === e.correct }; };
+  L.evaluate = () => { markOptions(btns, sel, e.correct); return optResult(e, sel); };
 };
 
 function listenHeader(kind, title) {
@@ -1241,7 +1385,7 @@ R.listenPick = (e, root) => {
   bindListen(e, root);
   let sel = -1;
   const btns = bindOptions(root, '.opt', i => { sel = i; api.ready(true); });
-  L.evaluate = () => { markOptions(btns, sel, e.correct); return { correct: sel === e.correct }; };
+  L.evaluate = () => { markOptions(btns, sel, e.correct); return optResult(e, sel); };
 };
 
 R.listenWord = (e, root) => {
@@ -1250,7 +1394,7 @@ R.listenWord = (e, root) => {
   bindListen(e, root);
   let sel = -1;
   const btns = bindOptions(root, '.opt', i => { sel = i; api.ready(true); });
-  L.evaluate = () => { markOptions(btns, sel, e.correct); return { correct: sel === e.correct }; };
+  L.evaluate = () => { markOptions(btns, sel, e.correct); return optResult(e, sel); };
 };
 
 R.match = (e, root) => {
@@ -1310,7 +1454,7 @@ R.mcq = (e, root) => {
     <div class="pills" style="margin-top:26px">${e.options.map((o, i) => `<button class="pill" data-key><span class="kbd">${i + 1}</span>${esc(o)}</button>`).join('')}</div>`;
   let sel = -1;
   const btns = bindOptions(root, '.pill', i => { sel = i; $('#blank', root).textContent = e.options[i]; api.ready(true); });
-  L.evaluate = () => { markOptions(btns, sel, e.correct); return { correct: sel === e.correct }; };
+  L.evaluate = () => { markOptions(btns, sel, e.correct); return optResult(e, sel); };
 };
 
 const hasTTS = () => 'speechSynthesis' in window && voices.length > 0;

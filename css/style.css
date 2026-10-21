@@ -300,6 +300,23 @@ p { margin: 0; }
   .section-head .btn { width: 100%; }
 }
 
+.review-card {
+  display: flex; align-items: center; gap: 14px; margin-bottom: 24px;
+  padding: 16px 18px; border-radius: var(--radius); border: 2px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+}
+.review-card.done { border-color: var(--line); background: var(--surface); }
+.rc-icon { font-size: 36px; flex: none; }
+.rc-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.rc-text b { font-size: 17px; }
+.rc-text span { color: var(--muted); font-size: 14px; }
+.review-card .btn { flex: none; }
+@media (max-width: 520px) { .review-card { flex-wrap: wrap; } .review-card .btn { width: 100%; } }
+.practice-card.featured { border-color: var(--accent); box-shadow: 0 4px 0 var(--accent-dark); }
+.phrase.nb { align-items: flex-start; }
+.nb-why { font-size: 13px; color: var(--brand); margin-top: 4px; line-height: 1.4; }
+.nb-count { color: var(--bad); font-weight: 900; font-size: 14px; flex: none; }
+
 .chat { display: flex; align-items: flex-end; gap: 12px; margin-bottom: 22px; }
 .chat-avatar { font-size: 44px; line-height: 1; flex: none; }
 .chat .bubble { flex: 1; }

@@ -9,6 +9,9 @@ Oyunlaştırılmış, tarayıcıda çalışan bir İngilizce öğrenme uygulamas
 - Uyarlanabilir seviye tespit sınavı (A0 – B1+)
 - 3 bölüm, 25 ünite, 100 ders: A1 Temeller · A2 Günlük Hayat · B1 Akıcı Konuşma
 - Tamamen tıklamalı egzersizler (klavye ve mikrofon gerekmez): resimli kelime, anlam seçme, kelime kartlarıyla cümle kurma, doğru çeviriyi bulma, dinleyip cümle/kelime seçme, boşluk doldurma, eşleştirme, gerçek hayat diyalogları
+- Aralıklı tekrar sistemi (Leitner): kelimeler unutulmaya yakın zamanda (1, 3, 7, 14, 30 gün) tekrar gelir
+- Yanlış cevaplarda "neden yanlış?" açıklamaları (dilbilgisi, kelime anlamı, kelime sırası)
+- Hata defteri: yanlış yapılan cümleler kaydedilir, iki kez doğru yapılınca silinir
 - Sınırsız can, XP, günlük seri, günlük hedef, başarımlar
 - Ünite rehberleri (Türkçe dilbilgisi açıklamaları), kelime listesi, pratik modları
 - Açık / koyu tema, mobil uyumlu
