@@ -32,7 +32,8 @@ const STORE_KEY = 'dilbaz-v1';
 const PRAISE = ['Harika!', 'Mükemmel!', 'Süper!', 'Aferin!', 'Çok iyi!', 'Tam isabet!'];
 const DAYS_TR = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
 const KEEP_CASE = new Set(['I', 'Ali', 'Turkey', 'Monday', 'Friday', 'Türkiyeliyim', "Türkiye'denim",
-  'Mr', 'Brown', 'Bay', 'London', "Londra'ya", "Londra'da", 'English', 'İngilizce', 'İngilizceyi', 'Spanish', 'İspanyolca', 'Antalya', "Antalya'ya", 'Sarah', 'Izmir', 'Turkish', 'Türk']);
+  'Mr', 'Brown', 'Bay', 'London', "Londra'ya", "Londra'da", 'English', 'İngilizce', 'İngilizceyi', 'Spanish', 'İspanyolca', 'Antalya', "Antalya'ya", 'Sarah', 'Izmir', 'Turkish', 'Türk',
+  'Elif', 'Ankara', 'TV', 'May', 'Sunday', 'Germany', "Almanya'ya", "İzmir'e", 'Wi-Fi', 'ATM', 'Italy', "İtalya'ya", "İtalya'da", 'Bayram', 'New', 'Year', 'Thursday']);
 const keepCase = t => KEEP_CASE.has(t) || /^I'/.test(t);
 UNITS.forEach(u => { u.level = u.level || 'A1'; u.dialogs = u.dialogs || []; });
 const LEVEL_NUM = { A1: 1, A2: 2, B1: 3 };
@@ -87,6 +88,32 @@ const defaultState = () => ({
 });
 
 let S = load();
+migrateLayout();
+
+// Üniteler eklendiğinde/yer değiştirdiğinde ilerlemeyi ünite adına göre yeni sıraya taşır
+function migrateLayout() {
+  const OLD_ORDER = ['Selamlaşma', 'Tanışma', 'Aile', 'Yiyecek ve İçecek', 'Renkler ve Sayılar', 'Hayvanlar', 'Günlük Rutin', 'Şehirde', 'Zaman ve Günler', 'Duygular ve Hava',
+    'Alışveriş', 'Restoranda', 'Seyahat', 'Geçmişte Ne Yaptın?', 'Doktorda', 'Hobiler', 'Gelecek Planları', 'İş Hayatı',
+    'Telefonda', 'Fikrini Söyle', 'Rica ve Öneri', 'Deneyimler', 'Sorunlar ve Şikayetler', 'Sohbet', 'Hayaller ve Şartlar'];
+  const now = UNITS.map(u => u.title);
+  const old = S.layout || OLD_ORDER;
+  if (old.join('|') === now.join('|')) return;
+  const map = g => {
+    const oi = Math.floor(g / LPU);
+    if (oi >= old.length) {
+      const lastNew = Math.max(...old.map(t => now.indexOf(t)));
+      return (lastNew + 1) * LPU;
+    }
+    const ni = now.indexOf(old[oi]);
+    return ni < 0 ? g : ni * LPU + (g % LPU);
+  };
+  if (S.progress > 0) S.progress = map(S.progress);
+  const completed = {};
+  Object.entries(S.completed || {}).forEach(([g, n]) => { completed[map(+g)] = n; });
+  S.completed = completed;
+  S.layout = now;
+  save();
+}
 function load() {
   try {
     const raw = localStorage.getItem(STORE_KEY);
@@ -94,7 +121,7 @@ function load() {
   } catch (e) { /* depolama yok */ }
   return defaultState();
 }
-function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) { /* yoksay */ } }
+function save() { S.layout = UNITS.map(u => u.title); try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) { /* yoksay */ } }
 
 function checkStreak() {
   if (S.lastActive && S.lastActive !== dayKey() && S.lastActive !== daysAgoKey(1) && S.streak) {
@@ -301,7 +328,13 @@ const dialogTr = text => { const d = allDialogs().find(x => x[2] === text); retu
 
 const ex = {
   pick(w, pool) {
-    const others = distinctWords(pool.filter(o => o.emoji), 2, w);
+    // Resimleri (emoji) birbirinden farklı seçenekler seç
+    const emojis = new Set([w.emoji]), others = [];
+    for (const o of distinctWords(pool.filter(o => o.emoji), 20, w)) {
+      if (emojis.has(o.emoji)) continue;
+      emojis.add(o.emoji); others.push(o);
+      if (others.length === 2) break;
+    }
     const options = shuffle([w, ...others]);
     return { type: 'pick', prompt: firstTr(w.tr), options, correct: options.indexOf(w), answerText: w.en, words: [w.en],
       reasons: options.map(o => o === w ? null : `“${o.en}” = ${firstTr(o.tr)}`) };
@@ -343,7 +376,7 @@ const ex = {
     shuffle(sentPool.filter(p => p !== s)).forEach(p => {
       tileTokens(dir === 'en' ? p.en : p.tr, lang).forEach(t => {
         const k = norm(t, lang);
-        if (!used.has(k) && !keepCase(t)) { used.add(k); extra.push(t); }
+        if (!used.has(k) && !/^[A-ZÇĞİÖŞÜ]/.test(t)) { used.add(k); extra.push(t); }
       });
     });
     const nDist = clamp(Math.round(ans.length * 0.6) + 1, 2, 5);
@@ -419,7 +452,7 @@ const ex = {
 function genLesson(ui, li) {
   if (UNITS[ui].level !== 'A1') return genAdvanced(ui, li);
   const u = UNITS[ui];
-  const { words, sents } = lessonContent(ui, li);
+  const { words, sents, dialogs } = lessonContent(ui, li);
   const wordPool = u.words;
   const sentPool = UNITS.slice(Math.max(0, ui - 1), ui + 1).flatMap(x => x.sentences);
   const pool = ui > 0 ? [...u.words, ...UNITS[ui - 1].words] : u.words;
@@ -438,6 +471,7 @@ function genLesson(ui, li) {
     rest.push(ex.build(S_(1), sentPool, wordPool, 'en', 'listen'));
     rest.push(ex.fill(S_(0), wordPool) || ex.build(S_(0), sentPool, wordPool, 'tr'));
     rest.push(ex.listenWord(W_(1), pool));
+    if (dialogs.length) rest.push(ex.reply(pickOne(dialogs), u.dialogs, true));
   } else {
     intro.push(ex.choice(W_(0), pool), ex.choiceRev(W_(1), pool));
     rest.push(ex.choice(W_(2), pool), ex.match(ws.slice(0, 5), pool), ex.match(ws.slice(5, 10), pool));
@@ -446,6 +480,7 @@ function genLesson(ui, li) {
     for (let i = 5; i < 7; i++) rest.push(ex.build(S_(i), sentPool, wordPool, 'en', 'listen'));
     rest.push(ex.fill(S_(7), wordPool) || ex.build(S_(7), sentPool, wordPool, 'en'));
     rest.push(ex.listenWord(W_(3), pool), ex.listenWord(W_(4), pool));
+    sample(u.dialogs, 2).forEach(d => rest.push(ex.reply(d, u.dialogs, true)));
   }
   return [...intro, ...shuffle(rest)];
 }

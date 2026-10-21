@@ -7,7 +7,8 @@ Oyunlaştırılmış, tarayıcıda çalışan bir İngilizce öğrenme uygulamas
 ## Özellikler
 
 - Uyarlanabilir seviye tespit sınavı (A0 – B1+)
-- 3 bölüm, 25 ünite, 100 ders: A1 Temeller · A2 Günlük Hayat · B1 Akıcı Konuşma
+- 3 bölüm, 37 ünite, 148 ders: A1 Temeller (14) · A2 Günlük Hayat (12) · B1 Akıcı Konuşma (11)
+- 370 kelime, 374 örnek cümle, 197 gerçek hayat diyaloğu
 - Tamamen tıklamalı egzersizler (klavye ve mikrofon gerekmez): resimli kelime, anlam seçme, kelime kartlarıyla cümle kurma, doğru çeviriyi bulma, dinleyip cümle/kelime seçme, boşluk doldurma, eşleştirme, gerçek hayat diyalogları
 - Aralıklı tekrar sistemi (Leitner): kelimeler unutulmaya yakın zamanda (1, 3, 7, 14, 30 gün) tekrar gelir
 - Yanlış cevaplarda "neden yanlış?" açıklamaları (dilbilgisi, kelime anlamı, kelime sırası)
@@ -24,7 +25,7 @@ Oyunlaştırılmış, tarayıcıda çalışan bir İngilizce öğrenme uygulamas
 
 ## Dosyalar
 
-- `js/data.js`, `js/data-a2.js`, `js/data-b1.js` — ders içerikleri
+- `js/data.js`, `js/data-a2.js`, `js/data-b1.js`, `js/data-more.js` — ders içerikleri
 - `js/placement.js` — seviye tespit soru bankası
 - `js/app.js` — uygulama ve ders motoru
 - `css/style.css` — tasarım
