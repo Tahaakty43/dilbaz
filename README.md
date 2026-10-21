@@ -8,18 +8,14 @@ Oyunlaştırılmış, tarayıcıda çalışan bir İngilizce öğrenme uygulamas
 
 - Uyarlanabilir seviye tespit sınavı (A0 – B1+)
 - 3 bölüm, 25 ünite, 100 ders: A1 Temeller · A2 Günlük Hayat · B1 Akıcı Konuşma
-- Egzersizler: resimli kelime, anlam seçme, cümle kurma, dinleme, dikte, yazma, boşluk doldurma, eşleştirme, gerçek hayat diyalogları, konuşma (mikrofon)
-- XP, günlük seri, can sistemi, günlük hedef, başarımlar
+- Tamamen tıklamalı egzersizler (klavye ve mikrofon gerekmez): resimli kelime, anlam seçme, kelime kartlarıyla cümle kurma, doğru çeviriyi bulma, dinleyip cümle/kelime seçme, boşluk doldurma, eşleştirme, gerçek hayat diyalogları
+- Sınırsız can, XP, günlük seri, günlük hedef, başarımlar
 - Ünite rehberleri (Türkçe dilbilgisi açıklamaları), kelime listesi, pratik modları
 - Açık / koyu tema, mobil uyumlu
 
 ## Çalıştırma
 
-`index.html` dosyasını tarayıcıda açman yeterli. Konuşma egzersizleri için yerel sunucu önerilir:
-
-```bash
-python -m http.server 5173
-```
+`index.html` dosyasını tarayıcıda açman yeterli.
 
 İlerleme tarayıcının yerel depolamasında (localStorage) tutulur.
 

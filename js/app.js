@@ -26,8 +26,6 @@ const firstTr = s => s.split('/')[0].trim();
 const altsOf = s => s.split('/').map(x => x.trim());
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
-const MAX_HEARTS = 5;
-const REGEN_MS = 20 * 60 * 1000;
 const LPU = 4; // ünite başına ders
 const TOTAL_LESSONS = UNITS.length * LPU;
 const STORE_KEY = 'dilbaz-v1';
@@ -55,7 +53,6 @@ const ICON = {
   heart: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7.5-4.6-9.6-9.4C.9 8.1 3 4 6.9 4c2.2 0 3.7 1.2 5.1 3 1.4-1.8 2.9-3 5.1-3C21 4 23.1 8.1 21.6 11.6 19.5 16.4 12 21 12 21z"/></svg>',
   fire: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 3.5 5.5 6 5.5 11a5.5 5.5 0 0 1-11 0c0-2.4 1.2-4 2.4-5.2.2 1.7.9 2.8 2.1 3.4C10.5 8 11 5 12 2z"/></svg>',
   bolt: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 2L4 13.5h6.5L9.5 22 20 9.5h-6.6z"/></svg>',
-  mic: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="8.5" y="2" width="7" height="12" rx="3.5"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>',
 };
 
 // Özgün maskot: "Pıtır" — mor bir konuşma balonu
@@ -82,10 +79,9 @@ const daysAgoKey = n => { const d = new Date(); d.setDate(d.getDate() - n); retu
 
 const defaultState = () => ({
   name: 'Öğrenci', xp: 0, streak: 0, bestStreak: 0, lastActive: null,
-  hearts: MAX_HEARTS, heartsAt: Date.now(),
   progress: 0, completed: {}, lessonsDone: 0,
   words: {}, daily: {}, goal: 30,
-  sound: true, speech: true, theme: 'auto',
+  sound: true, theme: 'auto',
   achievements: {}, tab: 'learn', onboarded: false, placement: null,
 });
 
@@ -98,19 +94,6 @@ function load() {
   return defaultState();
 }
 function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch (e) { /* yoksay */ } }
-
-function refreshHearts() {
-  if (S.hearts >= MAX_HEARTS) { S.hearts = MAX_HEARTS; return; }
-  const gained = Math.floor((Date.now() - S.heartsAt) / REGEN_MS);
-  if (gained > 0) {
-    S.hearts = Math.min(MAX_HEARTS, S.hearts + gained);
-    S.heartsAt += gained * REGEN_MS;
-    if (S.hearts >= MAX_HEARTS) S.heartsAt = Date.now();
-    save();
-  }
-}
-const nextHeartIn = () => Math.max(0, REGEN_MS - (Date.now() - S.heartsAt));
-const fmtMin = ms => `${Math.ceil(ms / 60000)} dk`;
 
 function checkStreak() {
   if (S.lastActive && S.lastActive !== dayKey() && S.lastActive !== daysAgoKey(1) && S.streak) {
@@ -170,7 +153,7 @@ function speak(text, slow = false) {
     speechSynthesis.speak(u);
   } catch (e) { /* yoksay */ }
 }
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const LISTEN_TYPES = ['listen', 'listenPick', 'listenWord'];
 
 // ---------- Metin karşılaştırma ----------
 // İngilizce kısaltmaları açar: "I'm" = "I am", "don't" = "do not" gibi
@@ -190,32 +173,7 @@ function norm(s, lang) {
   return t.replace(/\s+/g, ' ').trim();
 }
 // Kesme işaretlerini tamamen silerek karşılaştırma ("dont" = "don't")
-const bare = s => String(s).toLowerCase().replace(/[’`´']/g, '').replace(/[.,!?;:"¿¡\-]/g, ' ').replace(/\s+/g, ' ').trim();
 const loose = s => s.replace(/ç/g, 'c').replace(/ğ/g, 'g').replace(/ı/g, 'i').replace(/ö/g, 'o').replace(/ş/g, 's').replace(/ü/g, 'u').replace(/â/g, 'a');
-function lev(a, b) {
-  const m = a.length, n = b.length;
-  if (!m) return n; if (!n) return m;
-  let prev = Array.from({ length: n + 1 }, (_, i) => i);
-  for (let i = 1; i <= m; i++) {
-    const cur = [i];
-    for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
-    prev = cur;
-  }
-  return prev[n];
-}
-// Serbest yazılan cevabı esnek biçimde kontrol eder
-function checkTyped(input, answers, lang) {
-  const x = norm(input, lang);
-  if (!x) return { correct: false };
-  for (const a of answers) {
-    const y = norm(a, lang);
-    if (x === y || (lang !== 'tr' && bare(input) === bare(a))) return { correct: true };
-    if (loose(x) === loose(y)) return { correct: true, note: 'Türkçe karakterlere dikkat et.' };
-    const allowed = y.length > 4 ? Math.max(1, Math.floor(y.length / 14)) : 0;
-    if (allowed && lev(x, y) <= allowed) return { correct: true, note: `Küçük bir yazım hatası. Doğrusu: <b>${esc(a)}</b>` };
-  }
-  return { correct: false };
-}
 const exactMatch = (input, answers, lang) => answers.some(a => norm(a, lang) === norm(input, lang));
 const tokens = s => s.replace(/[.,!?;:"]/g, '').split(/\s+/).filter(Boolean);
 function tileTokens(s, lang) {
@@ -239,6 +197,37 @@ function lessonContent(ui, li) {
   return { words: u.words, sents: u.sentences, dialogs: d };
 }
 const allDialogs = () => UNITS.flatMap(u => u.dialogs);
+const allSentences = () => UNITS.flatMap(u => u.sentences);
+
+// Bir cümlenin dilbilgisi, kelime ya da kelime sırası bozulmuş "tuzak" versiyonlarını üretir
+const GRAMMAR_FLIP = { is: 'are', are: 'is', am: 'is', do: 'does', does: 'do', has: 'have', have: 'has', was: 'were', were: 'was', an: 'a', a: 'an', in: 'on', on: 'in', at: 'in', to: 'at', my: 'your', your: 'my', will: 'did', did: 'will', this: 'these', these: 'this' };
+const capFirst = w => w.charAt(0).toUpperCase() + w.slice(1);
+function sentenceVariants(en, answers, wordPool) {
+  const m = en.match(/^(.*?)([.!?]*)$/);
+  const core = m[1].split(' '), end = m[2];
+  const build = arr => capFirst(arr.join(' ')) + end;
+  const vocab = (wordPool || []).filter(x => !x.en.includes(' '));
+  const grammar = [], words = [], swaps = [];
+  core.forEach((w, i) => {
+    const bareW = w.replace(/,$/, ''), comma = w.endsWith(',') ? ',' : '';
+    const flip = GRAMMAR_FLIP[bareW.toLowerCase()];
+    if (flip) { const c = [...core]; c[i] = flip + comma; grammar.push(build(c)); }
+    if (vocab.some(x => norm(x.en, 'en') === norm(bareW, 'en'))) {
+      const other = pickOne(vocab.filter(x => norm(x.en, 'en') !== norm(bareW, 'en')));
+      if (other) { const c = [...core]; c[i] = other.en + comma; words.push(build(c)); }
+    }
+  });
+  for (let i = 0; i < core.length - 1; i++) {
+    if (/,$/.test(core[i]) || /,$/.test(core[i + 1])) continue;
+    const c = core.map((w, k) => (k === 0 && !keepCase(w)) ? w.toLowerCase() : w);
+    [c[i], c[i + 1]] = [c[i + 1], c[i]];
+    swaps.push(build(c));
+  }
+  const seen = new Set(answers.map(a => norm(a, 'en')));
+  const uniq = list => shuffle(list).filter(v => { const k = norm(v, 'en'); if (seen.has(k)) return false; seen.add(k); return true; });
+  // Önce dilbilgisi ve kelime tuzakları, sonra kelime sırası
+  return [...uniq(grammar), ...uniq(words), ...uniq(swaps)].slice(0, 4);
+}
 
 const ex = {
   pick(w, pool) {
@@ -256,8 +245,11 @@ const ex = {
     const options = shuffle([w, ...others]);
     return { type: 'choiceRev', prompt: firstTr(w.tr), options: options.map(o => o.en), correct: options.indexOf(w), answerText: w.en, words: [w.en] };
   },
-  type(w) {
-    return { type: 'type', prompt: firstTr(w.tr), emoji: w.emoji, answers: [w.en], answerText: w.en, words: [w.en] };
+  // Duyduğun kelimenin anlamını seç
+  listenWord(w, pool) {
+    pool = pool || UNITS.find(u => u.words.includes(w)).words;
+    const options = shuffle([w, ...distinctWords(pool, 3, w)]);
+    return { type: 'listenWord', audio: w.en, options: options.map(o => firstTr(o.tr)), correct: options.indexOf(w), answerText: `${w.en} = ${firstTr(w.tr)}`, words: [w.en] };
   },
   match(words, pool) {
     let list = sample(words, 5);
@@ -305,9 +297,6 @@ const ex = {
       hint: s.tr, audio: s.en, answerText: s.en, words: wordsIn(s.en, wordPool),
     };
   },
-  speak(s, wordPool) {
-    return { type: 'speak', text: s.en, meaning: s.tr, audio: s.en, answerText: s.en, words: wordsIn(s.en, wordPool), noPenalty: true };
-  },
   // Diyalog: karşı tarafın sözüne uygun cevabı seç
   reply(d, unitDialogs, showHint) {
     const [q, qtr, a, atr] = d;
@@ -319,13 +308,26 @@ const ex = {
     const options = shuffle(opts);
     return { type: 'reply', q, qtr: showHint ? qtr : null, options, correct: options.indexOf(a), answerText: a, meaning: atr, audio: a, words: [] };
   },
-  // Türkçe cümleyi İngilizce olarak klavyeyle yaz
-  write(s, wordPool) {
-    return { type: 'write', prompt: s.tr, answers: [s.en, ...(s.altEn || [])], answerText: s.en, audio: s.en, words: wordsIn(s.en, wordPool) };
+  // Türkçe cümlenin doğru çevirisini seç (yanlışlardan biri "tuzak" cümle)
+  sentChoice(s, wordPool) {
+    const answers = [s.en, ...(s.altEn || [])];
+    const traps = sentenceVariants(s.en, answers, wordPool);
+    const others = shuffle(allSentences().filter(o => o !== s && !answers.some(a => norm(a, 'en') === norm(o.en, 'en')))).map(o => o.en);
+    const opts = [s.en, ...traps.slice(0, 1)];
+    const rest = shuffle([...traps.slice(1, 3), ...others.slice(0, 2)]);
+    while (opts.length < 3 && rest.length) opts.push(rest.shift());
+    const options = shuffle(opts);
+    return { type: 'sentChoice', prompt: s.tr, options, correct: options.indexOf(s.en), answerText: s.en, audio: s.en, words: wordsIn(s.en, wordPool) };
   },
-  // Dikte: duyduğun cümleyi yaz
-  dictate(s, wordPool) {
-    return { type: 'dictate', audio: s.en, answers: [s.en, ...(s.altEn || [])], answerText: s.en, meaning: s.tr, words: wordsIn(s.en, wordPool) };
+  // Duyduğun cümleyi birbirine çok benzeyen seçenekler arasından bul
+  listenPick(s, wordPool) {
+    const answers = [s.en, ...(s.altEn || [])];
+    const traps = sentenceVariants(s.en, answers, wordPool);
+    const others = shuffle(allSentences().filter(o => o !== s)).map(o => o.en);
+    const opts = [s.en, ...traps.slice(0, 2)];
+    while (opts.length < 3) opts.push(others.shift());
+    const options = shuffle(opts);
+    return { type: 'listenPick', audio: s.en, options, correct: options.indexOf(s.en), answerText: s.en, meaning: s.tr, words: wordsIn(s.en, wordPool) };
   },
   // Diyalog cümlesini kelime kartlarıyla kur
   replyBuild(d, sentPool, wordPool) {
@@ -334,8 +336,6 @@ const ex = {
     return Object.assign(e, { type: 'build', prompt: atr, context: q });
   },
 };
-
-function canSpeak() { return !!SR && S.speech; }
 
 function genLesson(ui, li) {
   if (UNITS[ui].level !== 'A1') return genAdvanced(ui, li);
@@ -358,8 +358,7 @@ function genLesson(ui, li) {
     rest.push(ex.build(S_(2), sentPool, wordPool, 'tr'));
     rest.push(ex.build(S_(1), sentPool, wordPool, 'en', 'listen'));
     rest.push(ex.fill(S_(0), wordPool) || ex.build(S_(0), sentPool, wordPool, 'tr'));
-    rest.push(ex.type(W_(1)));
-    if (canSpeak()) rest.push(ex.speak(S_(2), wordPool));
+    rest.push(ex.listenWord(W_(1), pool));
   } else {
     intro.push(ex.choice(W_(0), pool), ex.choiceRev(W_(1), pool));
     rest.push(ex.choice(W_(2), pool), ex.match(ws.slice(0, 5), pool), ex.match(ws.slice(5, 10), pool));
@@ -367,8 +366,7 @@ function genLesson(ui, li) {
     for (let i = 3; i < 5; i++) rest.push(ex.build(S_(i), sentPool, wordPool, 'tr'));
     for (let i = 5; i < 7; i++) rest.push(ex.build(S_(i), sentPool, wordPool, 'en', 'listen'));
     rest.push(ex.fill(S_(7), wordPool) || ex.build(S_(7), sentPool, wordPool, 'en'));
-    rest.push(ex.type(W_(3)), ex.type(W_(4)));
-    if (canSpeak()) rest.push(ex.speak(S_(0), wordPool));
+    rest.push(ex.listenWord(W_(3), pool), ex.listenWord(W_(4), pool));
   }
   return [...intro, ...shuffle(rest)];
 }
@@ -385,42 +383,37 @@ function genAdvanced(ui, li) {
   const W = i => ws[i % ws.length], Sn = i => ss[i % ss.length], D = i => ds[i % ds.length];
   const hint = !b1;
   const intro = [], rest = [];
-  const speakD = i => ex.speak({ en: D(i)[2], tr: D(i)[3] }, wordPool);
-  const fill = i => ex.fill(Sn(i), wordPool) || ex.write(Sn(i), wordPool);
+  const fill = i => ex.fill(Sn(i), wordPool) || ex.sentChoice(Sn(i), wordPool);
 
   if (li === 3) {
     intro.push(ex.choice(W(0), pool), ex.match(ws.slice(0, 5), pool));
     rest.push(ex.match(ws.slice(5, 10), pool));
-    for (let i = 0; i < (b1 ? 4 : 3); i++) rest.push(ex.write(Sn(i), wordPool));
-    for (let i = 4; i < (b1 ? 7 : 6); i++) rest.push(ex.dictate(Sn(i), wordPool));
+    for (let i = 0; i < (b1 ? 4 : 3); i++) rest.push(ex.sentChoice(Sn(i), wordPool));
+    for (let i = 4; i < (b1 ? 7 : 6); i++) rest.push(ex.listenPick(Sn(i), wordPool));
     for (let i = 0; i < (b1 ? 4 : 3); i++) rest.push(ex.reply(D(i), u.dialogs, hint));
     rest.push(ex.build(Sn(6), sentPool, wordPool, 'tr'), ex.build(Sn(7), sentPool, wordPool, b1 ? 'tr' : 'en'));
-    rest.push(fill(1), ex.type(W(2)), ex.type(W(3)));
-    if (canSpeak()) rest.push(speakD(4), ex.speak(Sn(5), wordPool));
+    rest.push(fill(1), ex.listenWord(W(2), pool), ex.listenWord(W(3), pool));
   } else if (li === 2) {
     intro.push(ex.reply(D(0), u.dialogs, hint), ex.reply(D(1), u.dialogs, hint));
     rest.push(ex.reply(D(2), u.dialogs, hint), ex.reply(D(3), u.dialogs, hint));
     rest.push(ex.replyBuild(D(4), sentPool, wordPool), ex.replyBuild(D(5), sentPool, wordPool));
-    for (let i = 0; i < (b1 ? 3 : 2); i++) rest.push(ex.write(Sn(i), wordPool));
-    rest.push(ex.dictate(Sn(3), wordPool));
-    rest.push(b1 ? ex.dictate(Sn(4), wordPool) : ex.build(Sn(4), sentPool, wordPool, 'en', 'listen'));
+    for (let i = 0; i < (b1 ? 3 : 2); i++) rest.push(ex.sentChoice(Sn(i), wordPool));
+    rest.push(ex.listenPick(Sn(3), wordPool));
+    rest.push(b1 ? ex.listenPick(Sn(4), wordPool) : ex.build(Sn(4), sentPool, wordPool, 'en', 'listen'));
     rest.push(ex.match(sample(words, 5), pool));
-    if (canSpeak()) rest.push(speakD(1), speakD(2));
   } else if (!b1) {
     intro.push(W(0).emoji ? ex.pick(W(0), pool) : ex.choice(W(0), pool), ex.choice(W(1), pool));
     rest.push(ex.choiceRev(W(2), pool), ex.match(words, pool));
     rest.push(ex.build(Sn(0), sentPool, wordPool, 'en'), ex.build(Sn(1), sentPool, wordPool, 'tr'));
-    rest.push(ex.build(Sn(2), sentPool, wordPool, 'en', 'listen'), ex.write(Sn(1), wordPool));
+    rest.push(ex.build(Sn(2), sentPool, wordPool, 'en', 'listen'), ex.sentChoice(Sn(1), wordPool));
     rest.push(ex.reply(D(0), u.dialogs, true), ex.reply(D(1), u.dialogs, true));
-    rest.push(fill(2), ex.type(W(3)), ex.dictate(Sn(0), wordPool));
-    if (canSpeak()) rest.push(ex.speak(Sn(1), wordPool));
+    rest.push(fill(2), ex.listenWord(W(3), pool), ex.listenPick(Sn(0), wordPool));
   } else {
     intro.push(ex.choice(W(0), pool), ex.choiceRev(W(1), pool));
-    rest.push(ex.match(words, pool), ex.write(Sn(0), wordPool), ex.write(Sn(1), wordPool));
-    rest.push(ex.dictate(Sn(2), wordPool), ex.build(Sn(0), sentPool, wordPool, 'tr'));
+    rest.push(ex.match(words, pool), ex.sentChoice(Sn(0), wordPool), ex.sentChoice(Sn(1), wordPool));
+    rest.push(ex.listenPick(Sn(2), wordPool), ex.build(Sn(0), sentPool, wordPool, 'tr'));
     rest.push(ex.reply(D(0), u.dialogs, false), ex.reply(D(1), u.dialogs, false), ex.replyBuild(D(1), sentPool, wordPool));
-    rest.push(fill(1), ex.type(W(2)), ex.type(W(3)));
-    if (canSpeak()) rest.push(ex.speak(Sn(2), wordPool), speakD(0));
+    rest.push(fill(1), ex.listenWord(W(2), pool), ex.listenWord(W(3), pool));
   }
   return [...intro, ...shuffle(rest)];
 }
@@ -446,9 +439,9 @@ function genTest(si) {
   const lastSents = lastSec.flatMap(i => UNITS[i].sentences);
   const dialogs = lastSec.flatMap(i => UNITS[i].dialogs);
   const list = [];
-  sample(words, 3).forEach(w => list.push(ex.type(w)));
-  sample(lastSents, 4).forEach(s => list.push(ex.write(s, words)));
-  sample(sents, 3).forEach(s => list.push(ex.dictate(s, words)));
+  sample(words, 3).forEach(w => list.push(ex.choiceRev(w, words)));
+  sample(lastSents, 4).forEach(s => list.push(ex.sentChoice(s, words)));
+  sample(sents, 3).forEach(s => list.push(ex.listenPick(s, words)));
   sample(lastSents, 2).forEach(s => list.push(ex.build(s, sents, words, 'tr')));
   if (dialogs.length) sample(dialogs, 3).forEach(d => list.push(ex.reply(d, dialogs, false)));
   else sample(lastSents, 2).forEach(s => list.push(ex.build(s, sents, words, 'en', 'listen')));
@@ -463,8 +456,9 @@ function genPractice(kind) {
     sample(dialogs, 7).forEach(d => list.push(ex.reply(d, dialogs, false)));
     sample(dialogs, 3).forEach(d => list.push(ex.replyBuild(d, sents, pool)));
   } else if (kind === 'write') {
-    sample(sents, 5).forEach(s => list.push(ex.write(s, pool)));
-    sample(sents, 4).forEach(s => list.push(ex.dictate(s, pool)));
+    sample(sents, 4).forEach(s => list.push(ex.build(s, sents, pool, 'en')));
+    sample(sents, 2).forEach(s => list.push(ex.build(s, sents, pool, 'tr')));
+    sample(sents, 4).forEach(s => list.push(ex.sentChoice(s, pool)));
   } else if (kind === 'listen') {
     sample(sents, 8).forEach(s => list.push(ex.build(s, sents, pool, 'en', 'listen')));
   } else if (kind === 'match') {
@@ -474,7 +468,7 @@ function genPractice(kind) {
     // Zayıf kelimeler: en çok hata yapılan / en az pratik edilenler
     const score = w => { const s = S.words[w.en.toLowerCase()] || { c: 0, w: 0 }; return s.w * 2 - s.c + Math.random(); };
     const weak = [...words].sort((a, b) => score(b) - score(a)).slice(0, 6);
-    weak.forEach((w, i) => list.push([ex.choice, ex.choiceRev, ex.type][i % 3](w, pool)));
+    weak.forEach((w, i) => list.push([ex.choice, ex.choiceRev, ex.listenWord][i % 3](w, pool)));
     const weakSents = sents.filter(s => weak.some(w => wordsIn(s.en, [w]).length));
     const ss = shuffle(weakSents.length >= 3 ? weakSents : sents).slice(0, 4);
     ss.forEach((s, i) => list.push(ex.build(s, sents, pool, i % 2 ? 'tr' : 'en', i === 2 ? 'listen' : 'build')));
@@ -514,7 +508,7 @@ function renderApp() {
     if (S.progress > 0 || S.xp > 0) { S.onboarded = true; save(); }
     else { renderWelcome(); return; }
   }
-  refreshHearts(); checkStreak();
+  checkStreak();
   const navBtns = TABS.map(t => `<button class="nav-btn ${S.tab === t.id ? 'active' : ''}" data-tab="${t.id}"><span class="ni">${t.icon}</span><span class="nt">${t.label}</span></button>`).join('');
   $('#app').innerHTML = `
     <div class="shell">
@@ -530,7 +524,6 @@ function renderApp() {
       <nav class="bottomnav">${navBtns}</nav>
     </div>`;
   $$('[data-tab]').forEach(b => b.addEventListener('click', () => { S.tab = b.dataset.tab; save(); renderApp(); window.scrollTo(0, 0); }));
-  $$('[data-hearts]').forEach(b => b.addEventListener('click', showHeartsInfo));
   ({ learn: renderLearn, practice: renderPractice, words: renderWords, profile: renderProfile }[S.tab] || renderLearn)();
   bindWordOfDay();
 }
@@ -541,7 +534,7 @@ function topStats() {
     <span class="flag" title="Şu anki seviyen">${currentLevel()}</span>
     <span class="stat fire ${S.streak ? '' : 'off'}" title="Günlük seri">${ICON.fire}${S.streak}</span>
     <span class="stat xp" title="Toplam XP">${ICON.bolt}${S.xp}</span>
-    <button class="stat hearts icon-btn" data-hearts title="Canlar">${ICON.heart}${S.hearts}</button>
+    <span class="stat hearts" title="Sınırsız can">${ICON.heart}∞</span>
   </div>`;
 }
 
@@ -559,12 +552,6 @@ function rightbar() {
       <h3>Günlük hedef</h3>
       <div class="bar"><div style="width:${goalPct}%"></div></div>
       <div class="bar-label"><span>${todayXp()} / ${S.goal} XP</span><span>${goalPct >= 100 ? '✅ Tamamlandı' : '🎯'}</span></div>
-    </div>
-    <div class="panel">
-      <div class="panel-row"><div class="big-emoji">❤️</div><div>
-        <h3 style="margin:0">${S.hearts} / ${MAX_HEARTS} can</h3>
-        <div class="muted">${S.hearts >= MAX_HEARTS ? 'Canların dolu.' : `Sonraki can ${fmtMin(nextHeartIn())} içinde. Pratik yaparak can kazanabilirsin.`}</div>
-      </div></div>
     </div>
     ${wod ? `<div class="panel">
       <h3>Günün kelimesi</h3>
@@ -681,26 +668,10 @@ function showTestIntro(si) {
   const m = openModal(`${mascot('wow')}
     <h2>${sec.level} seviyesine atla</h2>
     <p class="mtext">Önceki seviyeleri zaten biliyor musun? Bu sınavı geçersen <b>${esc(sec.title)}</b> bölümü ve öncesindeki tüm dersler açılır.<br><br>
-    📝 ${genTest(si).length} soru · ❤️ 3 hata hakkı · çoğu soru klavyeyle yazma</p>
+    📝 ${genTest(si).length} soru · ❌ 3 hata hakkı</p>
     <div class="modal-actions"><button class="btn gold" data-go>SINAVA BAŞLA</button><button class="btn ghost" data-close>VAZGEÇ</button></div>`, 'center');
   $('[data-close]', m).addEventListener('click', closeModal);
   $('[data-go]', m).addEventListener('click', () => startSession({ mode: 'test', si, exercises: genTest(si), lives: 3 }));
-}
-
-function showHeartsInfo() {
-  refreshHearts();
-  const m = openModal(`
-    ${mascot(S.hearts ? 'happy' : 'sad')}
-    <h2>${S.hearts} / ${MAX_HEARTS} can</h2>
-    <p class="mtext">Derslerde her hata bir can götürür. Canlar ${REGEN_MS / 60000} dakikada bir kendiliğinden yenilenir.
-    ${S.hearts < MAX_HEARTS ? `<br>Sonraki can: <b>${fmtMin(nextHeartIn())}</b>` : ''}<br>Pratik oturumu tamamlayarak da +1 can kazanabilirsin.</p>
-    <div class="modal-actions">
-      ${S.hearts < MAX_HEARTS && S.progress > 0 ? '<button class="btn ok" data-prac>PRATİK YAP (+1 CAN)</button>' : ''}
-      <button class="btn ghost" data-close>KAPAT</button>
-    </div>`, 'center');
-  $('[data-close]', m).addEventListener('click', closeModal);
-  const p = $('[data-prac]', m);
-  if (p) p.addEventListener('click', () => { closeModal(); startPractice('weak'); });
 }
 
 // ---------- Pratik sekmesi ----------
@@ -710,15 +681,15 @@ function renderPractice() {
     <h1 class="page-title">Pratik</h1>
     <div class="practice-hero panel">${mascot('happy', 'bounce')}<div>
       <h3>Tekrar, öğrenmenin anahtarıdır!</h3>
-      <p class="muted">Pratik oturumlarında can kaybetmezsin. Her oturum <b>+1 can</b> ve <b>+5 XP</b> kazandırır.</p>
+      <p class="muted">Öğrendiklerini pekiştir. Her pratik oturumu <b>+5 XP</b> kazandırır.</p>
     </div></div>
     ${ready ? '' : '<p class="locked-note" style="margin-bottom:14px">Pratik yapabilmek için önce ilk dersini tamamla.</p>'}
     <div class="practice-grid">
-      <button class="practice-card" data-prac="weak" ${ready ? '' : 'disabled'}><div class="pi">🎯</div><div><h3>Zayıf kelimeler</h3><p>En çok zorlandığın kelimeleri tekrar et.</p></div><span class="reward">+1 ❤️</span></button>
-      <button class="practice-card" data-prac="listen" ${ready ? '' : 'disabled'}><div class="pi">🎧</div><div><h3>Dinleme pratiği</h3><p>Duyduğun cümleleri yaz, kulağını alıştır.</p></div><span class="reward">+1 ❤️</span></button>
-      <button class="practice-card" data-prac="match" ${ready ? '' : 'disabled'}><div class="pi">🧩</div><div><h3>Hızlı eşleştirme</h3><p>Kelimeleri anlamlarıyla eşleştir.</p></div><span class="reward">+1 ❤️</span></button>
-      <button class="practice-card" data-prac="write" ${S.progress >= 8 ? '' : 'disabled'}><div class="pi">✍️</div><div><h3>Yazma ve dikte</h3><p>Cümleleri klavyeyle yaz. ${S.progress >= 8 ? '' : '(2 ünite bitirince açılır)'}</p></div><span class="reward">+1 ❤️</span></button>
-      <button class="practice-card" data-prac="dialog" ${learnedContent().dialogs.length >= 4 ? '' : 'disabled'}><div class="pi">🗣️</div><div><h3>Konuşma simülasyonu</h3><p>Gerçek hayattan diyaloglarda doğru cevabı ver. ${learnedContent().dialogs.length >= 4 ? '' : '(A2 bölümünde açılır)'}</p></div><span class="reward">+1 ❤️</span></button>
+      <button class="practice-card" data-prac="weak" ${ready ? '' : 'disabled'}><div class="pi">🎯</div><div><h3>Zayıf kelimeler</h3><p>En çok zorlandığın kelimeleri tekrar et.</p></div><span class="reward">+5 XP</span></button>
+      <button class="practice-card" data-prac="listen" ${ready ? '' : 'disabled'}><div class="pi">🎧</div><div><h3>Dinleme pratiği</h3><p>Duyduğun cümleleri bul ve kur, kulağını alıştır.</p></div><span class="reward">+5 XP</span></button>
+      <button class="practice-card" data-prac="match" ${ready ? '' : 'disabled'}><div class="pi">🧩</div><div><h3>Hızlı eşleştirme</h3><p>Kelimeleri anlamlarıyla eşleştir.</p></div><span class="reward">+5 XP</span></button>
+      <button class="practice-card" data-prac="write" ${S.progress >= 4 ? '' : 'disabled'}><div class="pi">🧱</div><div><h3>Cümle ustası</h3><p>Cümle kur ve doğru çeviriyi bul. ${S.progress >= 4 ? '' : '(1 ünite bitirince açılır)'}</p></div><span class="reward">+5 XP</span></button>
+      <button class="practice-card" data-prac="dialog" ${learnedContent().dialogs.length >= 4 ? '' : 'disabled'}><div class="pi">🗣️</div><div><h3>Konuşma simülasyonu</h3><p>Gerçek hayattan diyaloglarda doğru cevabı ver. ${learnedContent().dialogs.length >= 4 ? '' : '(A2 bölümünde açılır)'}</p></div><span class="reward">+5 XP</span></button>
     </div>`;
   $$('[data-prac]').forEach(b => b.addEventListener('click', () => startPractice(b.dataset.prac)));
 }
@@ -785,7 +756,6 @@ function renderProfile() {
     <h2 class="section-title">Ayarlar</h2>
     <div class="panel settings">
       <label class="setting"><div><div>Ses efektleri</div><div class="sd">Doğru/yanlış sesleri</div></div><input type="checkbox" class="toggle" id="s-sound" ${S.sound ? 'checked' : ''}></label>
-      <label class="setting"><div><div>Konuşma alıştırmaları</div><div class="sd">${SR ? 'Mikrofonla telaffuz egzersizleri' : 'Bu tarayıcı konuşma tanımayı desteklemiyor'}</div></div><input type="checkbox" class="toggle" id="s-speech" ${S.speech && SR ? 'checked' : ''} ${SR ? '' : 'disabled'}></label>
       <div class="setting"><div><div>Günlük hedef</div><div class="sd">Her gün kazanmak istediğin XP</div></div>
         <select class="select" id="s-goal">${[[10, 'Rahat'], [20, 'Normal'], [30, 'Ciddi'], [50, 'Yoğun']].map(([v, l]) => `<option value="${v}" ${S.goal === v ? 'selected' : ''}>${l} · ${v} XP</option>`).join('')}</select></div>
       <div class="setting"><div><div>Tema</div><div class="sd">Açık / koyu görünüm</div></div>
@@ -795,7 +765,6 @@ function renderProfile() {
     </div>`;
   $('#pname').addEventListener('change', e => { S.name = e.target.value.trim() || 'Öğrenci'; save(); renderApp(); });
   $('#s-sound').addEventListener('change', e => { S.sound = e.target.checked; save(); });
-  $('#s-speech').addEventListener('change', e => { S.speech = e.target.checked; save(); });
   $('#s-goal').addEventListener('change', e => { S.goal = +e.target.value; save(); renderApp(); });
   $('#s-theme').addEventListener('change', e => { S.theme = e.target.value; save(); applyTheme(); });
   $('#s-place').addEventListener('click', startPlacement);
@@ -813,8 +782,6 @@ function renderProfile() {
 let L = null;
 
 function startLesson(ui, li) {
-  refreshHearts();
-  if (S.hearts <= 0) { showNoHearts(false); return; }
   const g = ui * LPU + li;
   startSession({ mode: 'lesson', ui, li, g, exercises: genLesson(ui, li), replay: g < S.progress });
 }
@@ -834,7 +801,7 @@ function startSession(cfg) {
       <header class="lesson-top" style="position:relative">
         <button class="icon-btn" id="quit" aria-label="Dersten çık">✕</button>
         <div class="progress"><div class="progress-fill" id="pfill"></div></div>
-        <div class="lesson-hearts" id="lhearts">${ICON.heart}<span>${L.mode === 'lesson' ? S.hearts : L.mode === 'test' ? L.lives : '∞'}</span></div>
+        <div class="lesson-hearts" id="lhearts">${L.mode === 'test' ? ICON.cross : ICON.heart}<span>${L.mode === 'test' ? L.lives : '∞'}</span></div>
         ${L.mode === 'placement' ? '<div class="pl-tag" id="pltag"></div>' : ''}
         <div id="combo"></div>
       </header>
@@ -882,7 +849,7 @@ function next() {
   check.textContent = 'KONTROL ET'; check.className = 'btn ok'; check.disabled = true;
   const skip = $('#skip');
   skip.style.display = L.cur.type === 'match' ? 'none' : '';
-  skip.textContent = L.mode === 'placement' ? 'BİLMİYORUM' : L.cur.type === 'speak' ? 'ŞU AN KONUŞAMIYORUM' : (L.cur.type === 'listen' || L.cur.type === 'dictate') && L.mode !== 'test' ? 'ŞU AN DİNLEYEMİYORUM' : 'ATLA';
+  skip.textContent = L.mode === 'placement' ? 'BİLMİYORUM' : LISTEN_TYPES.includes(L.cur.type) && L.mode !== 'test' ? 'ŞU AN DİNLEYEMİYORUM' : 'ATLA';
   check.style.display = L.cur.type === 'match' ? 'none' : '';
   const root = $('#ex');
   root.className = 'ex';
@@ -912,7 +879,6 @@ function doCheck() {
 function onMainButton() {
   if (!L) return;
   if (L.phase === 'answer') doCheck();
-  else if (L.mode === 'lesson' && S.hearts <= 0) showNoHearts(true);
   else if (L.mode === 'test' && L.lives <= 0) testFailed();
   else next();
 }
@@ -920,15 +886,14 @@ function onMainButton() {
 function onSkip() {
   if (!L || L.phase !== 'answer') return;
   if (L.mode === 'placement') { handleResult({ correct: false, skipped: true }); return; }
-  const group = L.cur.type === 'speak' ? ['speak'] : ['listen', 'dictate'];
-  if (L.cur.type === 'speak' || (group.includes(L.cur.type) && L.mode !== 'test')) {
+  const group = LISTEN_TYPES;
+  if (group.includes(L.cur.type) && L.mode !== 'test') {
     // Ceza yok: bu türdeki kalan egzersizleri bu oturumdan çıkar
-    const t = L.cur.type;
     const removed = L.queue.filter(e => group.includes(e.type)).length;
     L.queue = L.queue.filter(e => !group.includes(e.type));
     L.total -= removed + 1;
     if (L.total < 1) L.total = 1;
-    toast(t === 'speak' ? 'Konuşma egzersizleri bu ders için kapatıldı.' : 'Dinleme egzersizleri bu ders için kapatıldı.');
+    toast('Dinleme egzersizleri bu ders için kapatıldı.');
     next();
     return;
   }
@@ -989,13 +954,6 @@ function handleResult(r) {
       lh.querySelector('span').textContent = L.lives;
       lh.classList.remove('shake'); void lh.offsetWidth; lh.classList.add('shake');
     }
-    if (L.mode === 'lesson' && !e.noPenalty) {
-      if (S.hearts >= MAX_HEARTS) S.heartsAt = Date.now();
-      S.hearts = Math.max(0, S.hearts - 1);
-      const lh = $('#lhearts');
-      lh.querySelector('span').textContent = S.hearts;
-      lh.classList.remove('shake'); void lh.offsetWidth; lh.classList.add('shake');
-    }
     // Yanlış cevaplanan soruyu sona ekle (en fazla 2 kez)
     if (e.tries < 2 && L.mode !== 'test') L.queue.push({ ...e, tries: e.tries + 1 });
     else L.done++;
@@ -1011,19 +969,6 @@ function testFailed() {
     <p class="mtext">Hata hakkın bitti. Endişelenme: dersleri sırayla yaparak bu seviyeye adım adım ulaşabilir, sınavı istediğin zaman tekrar deneyebilirsin.</p>
     <div class="modal-actions"><button class="btn" data-home>ANA SAYFAYA DÖN</button></div>`, 'center');
   $('[data-home]', m).addEventListener('click', () => { closeModal(); renderApp(); });
-}
-
-function showNoHearts(inLesson) {
-  refreshHearts();
-  const m = openModal(`${mascot('sad')}<h2>Canın kalmadı 💔</h2>
-    <p class="mtext">Sonraki can <b>${fmtMin(nextHeartIn())}</b> içinde dolacak. Beklemek istemiyorsan pratik yaparak can kazanabilirsin.</p>
-    <div class="modal-actions">
-      ${S.progress > 0 ? '<button class="btn ok" data-prac>PRATİK YAP (+1 CAN)</button>' : ''}
-      <button class="btn ghost" data-home>${inLesson ? 'DERSTEN ÇIK' : 'KAPAT'}</button>
-    </div>`, 'center');
-  const p = $('[data-prac]', m);
-  if (p) p.addEventListener('click', () => startPractice('weak'));
-  $('[data-home]', m).addEventListener('click', () => { closeModal(); if (inLesson) renderApp(); });
 }
 
 function finish() {
@@ -1062,9 +1007,6 @@ function finish() {
   } else if (L.mode === 'lesson') {
     S.completed[L.g] = (S.completed[L.g] || 0) + 1;
     if (L.g === S.progress) { S.progress++; unitDone = L.li === LPU - 1; }
-  } else {
-    S.hearts = Math.min(MAX_HEARTS, S.hearts + 1);
-    if (S.hearts >= MAX_HEARTS) S.heartsAt = Date.now();
   }
 
   // Başarımlar
@@ -1096,7 +1038,6 @@ function finish() {
   if (goalNow) extras.push(`<div class="panel"><div class="big-emoji">🎯</div><div><b>Günlük hedef tamamlandı!</b><div class="muted">Bugün ${todayXp()} XP kazandın.</div></div></div>`);
   if (testPassed) extras.push(`<div class="panel"><div class="big-emoji">🚀</div><div><b>${testPassed.level} seviyesi açıldı!</b><div class="muted">${esc(testPassed.title)} bölümünden devam edebilirsin.</div></div></div>`);
   if (unitDone) extras.push(`<div class="panel"><div class="big-emoji">🏆</div><div><b>${esc(UNITS[ui].title)} ünitesi bitti!</b><div class="muted">${ui + 1 < UNITS.length ? `Sıradaki: ${esc(UNITS[ui + 1].title)}` : 'Tüm üniteleri tamamladın!'}</div></div></div>`);
-  if (mode === 'practice') extras.push(`<div class="panel"><div class="big-emoji">❤️</div><div><b>+1 can kazandın</b><div class="muted">Şu an ${S.hearts} / ${MAX_HEARTS} canın var.</div></div></div>`);
   unlocked.forEach(a => extras.push(`<div class="panel"><div class="big-emoji">${a.icon}</div><div><b>Yeni başarım: ${esc(a.title)}</b><div class="muted">${esc(a.desc)}</div></div></div>`));
 
   $('#app').innerHTML = `
@@ -1180,18 +1121,6 @@ R.choiceRev = (e, root) => {
   let sel = -1;
   const btns = bindOptions(root, '.opt', i => { sel = i; speak(e.options[i]); api.ready(true); });
   L.evaluate = () => { markOptions(btns, sel, e.correct); return { correct: sel === e.correct }; };
-};
-
-R.type = (e, root) => {
-  root.innerHTML = `<div class="ex-kind">⌨️ YAZ</div>
-    <h2 class="ex-title">Bunu İngilizce yaz</h2>
-    <div class="bubble-row">${mascot('happy')}<div class="bubble"><span style="font-size:26px">${e.emoji || ''}</span> ${esc(e.prompt)}</div></div>
-    <textarea class="type-input" id="tin" placeholder="İngilizce yaz…" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>`;
-  const tin = $('#tin', root);
-  tin.addEventListener('input', () => api.ready(tin.value.trim().length > 0));
-  tin.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); if (L.phase === 'answer') api.submit(); else onMainButton(); } });
-  setTimeout(() => tin.focus(), 50);
-  L.evaluate = () => checkTyped(tin.value, e.answers, 'en');
 };
 
 function tileExercise(e, root, header) {
@@ -1282,34 +1211,46 @@ R.reply = (e, root) => {
   L.evaluate = () => { markOptions(btns, sel, e.correct); return { correct: sel === e.correct }; };
 };
 
-function typedAnswer(e, root) {
-  const tin = $('#tin', root);
-  tin.addEventListener('input', () => api.ready(tin.value.trim().length > 0));
-  tin.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); if (L.phase === 'answer') api.submit(); else onMainButton(); } });
-  setTimeout(() => tin.focus(), 50);
-  L.evaluate = () => checkTyped(tin.value, e.answers, 'en');
-}
-
-R.write = (e, root) => {
-  root.innerHTML = `<div class="ex-kind">✍️ ÇEVİR VE YAZ</div>
-    <h2 class="ex-title">Bu cümleyi İngilizce yaz</h2>
+R.sentChoice = (e, root) => {
+  root.innerHTML = `<div class="ex-kind">🔍 DOĞRU ÇEVİRİ</div>
+    <h2 class="ex-title">Doğru İngilizce çeviriyi seç</h2>
     <div class="bubble-row">${mascot('happy')}<div class="bubble">${esc(e.prompt)}</div></div>
-    <textarea class="type-input" id="tin" placeholder="İngilizce yaz…" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>`;
-  typedAnswer(e, root);
+    <div class="opts">${e.options.map((o, i) => `<button class="opt" data-key><span class="kbd">${i + 1}</span>${esc(o)}</button>`).join('')}</div>`;
+  let sel = -1;
+  const btns = bindOptions(root, '.opt', i => { sel = i; api.ready(true); });
+  L.evaluate = () => { markOptions(btns, sel, e.correct); return { correct: sel === e.correct }; };
 };
 
-R.dictate = (e, root) => {
-  root.innerHTML = `<div class="ex-kind">🎧 DİKTE</div>
-    <h2 class="ex-title">Duyduğunu İngilizce yaz</h2>
+function listenHeader(kind, title) {
+  return `<div class="ex-kind">${kind}</div>
+    <h2 class="ex-title">${title}</h2>
     <div class="listen-row">
       <button class="speaker" data-say aria-label="Dinle">${ICON.speaker}</button>
       <button class="speaker slow" data-slow aria-label="Yavaş dinle">${ICON.turtle}</button>
-    </div>
-    <textarea class="type-input" id="tin" placeholder="Duyduğunu yaz…" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>`;
+    </div>`;
+}
+function bindListen(e, root) {
   $('[data-say]', root).addEventListener('click', () => speak(e.audio));
   $('[data-slow]', root).addEventListener('click', () => speak(e.audio, true));
   setTimeout(() => speak(e.audio), 250);
-  typedAnswer(e, root);
+}
+
+R.listenPick = (e, root) => {
+  root.innerHTML = `${listenHeader('🎧 DİNLE VE BUL', 'Duyduğun cümleyi seç')}
+    <div class="opts">${e.options.map((o, i) => `<button class="opt" data-key><span class="kbd">${i + 1}</span>${esc(o)}</button>`).join('')}</div>`;
+  bindListen(e, root);
+  let sel = -1;
+  const btns = bindOptions(root, '.opt', i => { sel = i; api.ready(true); });
+  L.evaluate = () => { markOptions(btns, sel, e.correct); return { correct: sel === e.correct }; };
+};
+
+R.listenWord = (e, root) => {
+  root.innerHTML = `${listenHeader('🎧 DİNLE', 'Duyduğun kelimenin anlamı ne?')}
+    <div class="opts">${e.options.map((o, i) => `<button class="opt" data-key><span class="kbd">${i + 1}</span>${esc(o)}</button>`).join('')}</div>`;
+  bindListen(e, root);
+  let sel = -1;
+  const btns = bindOptions(root, '.opt', i => { sel = i; api.ready(true); });
+  L.evaluate = () => { markOptions(btns, sel, e.correct); return { correct: sel === e.correct }; };
 };
 
 R.match = (e, root) => {
@@ -1352,43 +1293,6 @@ R.match = (e, root) => {
   L.evaluate = null;
 };
 
-R.speak = (e, root) => {
-  root.innerHTML = `<div class="ex-kind">🎤 KONUŞ</div>
-    <h2 class="ex-title">Bu cümleyi sesli söyle</h2>
-    <div class="bubble-row">${mascot('happy')}<div class="bubble"><button class="speaker mini" data-say aria-label="Dinle">${ICON.speaker}</button>${esc(e.text)}</div></div>
-    <button class="mic-btn" id="mic">${ICON.mic}<span>KONUŞMAK İÇİN DOKUN</span></button>
-    <div class="mic-status" id="mstat">${esc(e.meaning)}</div>`;
-  $('[data-say]', root).addEventListener('click', () => speak(e.text));
-  const mic = $('#mic', root), stat = $('#mstat', root);
-  let rec = null, busy = false;
-  const target = norm(e.text, 'en').split(' ');
-  const score = heard => {
-    const h = norm(heard, 'en').split(' ');
-    return target.filter(w => h.includes(w)).length / target.length;
-  };
-  mic.addEventListener('click', () => {
-    if (busy) { try { rec.stop(); } catch (err) { /* yoksay */ } return; }
-    try { speechSynthesis.cancel(); } catch (err) { /* yoksay */ }
-    rec = new SR();
-    rec.lang = 'en-US'; rec.interimResults = false; rec.maxAlternatives = 3;
-    rec.onstart = () => { busy = true; mic.classList.add('rec'); mic.querySelector('span').textContent = 'DİNLİYORUM… (DURDURMAK İÇİN DOKUN)'; stat.textContent = ''; };
-    rec.onend = () => { busy = false; mic.classList.remove('rec'); mic.querySelector('span').textContent = 'TEKRAR DENE'; };
-    rec.onerror = ev => {
-      stat.textContent = ev.error === 'not-allowed' ? 'Mikrofon izni verilmedi. "Şu an konuşamıyorum" ile geçebilirsin.' : 'Ses alınamadı, tekrar dene.';
-    };
-    rec.onresult = ev => {
-      const alts = [...ev.results[0]].map(a => a.transcript);
-      let best = alts[0], bestScore = -1;
-      alts.forEach(a => { const s = score(a); if (s > bestScore) { bestScore = s; best = a; } });
-      stat.innerHTML = `Duyduğum: “${esc(best)}”`;
-      L.evaluate = () => ({ correct: bestScore >= 0.7, note: `Duyduğum: “${esc(best)}”` });
-      api.ready(true);
-      setTimeout(() => api.submit(), 400);
-    };
-    try { rec.start(); } catch (err) { stat.textContent = 'Mikrofon başlatılamadı.'; }
-  });
-};
-
 // ==========================================================
 //   SEVİYE TESPİTİ
 // ==========================================================
@@ -1428,7 +1332,7 @@ function placementBlock(li, ext) {
   const sent = () => { const free = sents.filter(s => !used.has(s.en)); const s = pickOne(free.length ? free : sents); used.add(s.en); return s; };
   const list = [];
   if (ext) {
-    list.push(mcq(), mcq(), lvl === 'A1' ? ex.build(sent(), sents, words, 'en') : ex.write(sent(), words));
+    list.push(mcq(), mcq(), lvl === 'A1' ? ex.build(sent(), sents, words, 'en') : ex.sentChoice(sent(), words));
   } else if (lvl === 'A1') {
     list.push(mcq(), mcq(), mcq(), ex.choice(pickOne(words), words));
     list.push(hasTTS() ? ex.build(sent(), sents, words, 'en', 'listen') : mcq());
@@ -1436,8 +1340,8 @@ function placementBlock(li, ext) {
   } else {
     list.push(mcq(), mcq(), ex.choiceRev(pickOne(words), words));
     list.push(ex.reply(pickOne(dialogs), dialogs, false));
-    list.push(hasTTS() ? ex.dictate(sent(), words) : mcq());
-    list.push(ex.write(sent(), words));
+    list.push(hasTTS() ? ex.listenPick(sent(), words) : mcq());
+    list.push(ex.sentChoice(sent(), words));
   }
   return shuffle(list).map(e => ({ ...e, tries: 0 }));
 }
@@ -1547,4 +1451,3 @@ document.addEventListener('keydown', ev => {
 // ---------- Başlat ----------
 applyTheme();
 renderApp();
-setInterval(() => { if (!L && S.hearts < MAX_HEARTS) { const before = S.hearts; refreshHearts(); if (S.hearts !== before) renderApp(); } }, 60000);
