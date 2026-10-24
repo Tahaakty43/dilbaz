@@ -492,6 +492,19 @@ svg { flex: none; }
 .pl-row.off { opacity: .45; }
 .pl-lvl { font-weight: 800; width: 30px; text-align: left; color: var(--ink); }
 .pl-res { width: 64px; text-align: right; font-size: 13.5px; font-weight: 700; }
+.pl-summary { display: flex; align-items: center; gap: 16px; padding: 20px 24px 8px; text-align: left; }
+.pl-summary .pl-badge { width: 76px; height: 76px; font-size: 26px; flex: none; }
+.pl-start h3 { font-size: 18px; }
+.pl-start .muted { font-size: 13px; }
+.pl-desc { padding: 6px 24px 0; font-size: 13.5px; text-align: left; }
+.result-card .pl-table { max-width: none; padding: 16px 24px 4px; gap: 14px; }
+.pl-level { display: flex; flex-direction: column; gap: 6px; }
+.pl-level.off { opacity: .45; }
+.pl-bands { display: flex; flex-wrap: wrap; gap: 6px; padding-left: 42px; }
+.pl-band { font-size: 11.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+.pl-band.ok { background: var(--ok-soft); color: var(--ok); }
+.pl-band.no { background: var(--accent-soft); color: var(--accent-dark); }
+.pl-foot { padding: 8px 24px 20px; }
 
 .confetti { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 50; }
 .confetti i { position: absolute; top: -20px; width: 9px; height: 14px; border-radius: 3px; animation: fall linear forwards; }

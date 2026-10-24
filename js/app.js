@@ -966,7 +966,7 @@ function renderProfile() {
         <select class="select" id="s-goal">${[[10, 'Rahat'], [20, 'Normal'], [30, 'Ciddi'], [50, 'Yoğun']].map(([v, l]) => `<option value="${v}" ${S.goal === v ? 'selected' : ''}>${l} · ${v} XP</option>`).join('')}</select></div>
       <div class="setting"><div><div>Tema</div><div class="sd">Açık / koyu görünüm</div></div>
         <select class="select" id="s-theme">${[['auto', 'Sistem'], ['light', 'Açık'], ['dark', 'Koyu']].map(([v, l]) => `<option value="${v}" ${S.theme === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
-      <div class="setting"><div><div>Seviye tespit sınavı</div><div class="sd">${S.placement ? `Son sonuç: ${S.placement.level} (${S.placement.date})` : 'Henüz yapılmadı'}</div></div><button class="btn gold sm" id="s-place">${S.placement ? 'Tekrar yap' : 'Başla'}</button></div>
+      <div class="setting"><div><div>Seviye tespit sınavı</div><div class="sd">${S.placement ? `Son sonuç: ${S.placement.level}${S.placement.unit ? ` · Ünite ${S.placement.unit}` : ''} (${S.placement.date})` : 'Henüz yapılmadı'}</div></div><button class="btn gold sm" id="s-place">${S.placement ? 'Tekrar yap' : 'Başla'}</button></div>
       <div class="setting"><div><div>İlerlemeyi sıfırla</div><div class="sd">Tüm verilerin silinir</div></div><button class="btn bad sm" id="s-reset">Sıfırla</button></div>
     </div>`;
   $('#pname').addEventListener('change', e => { S.name = e.target.value.trim() || 'Öğrenci'; save(); renderApp(); });
@@ -1071,10 +1071,10 @@ function next() {
 
 function updateProgress() {
   if (L.mode === 'placement') {
-    const p = L.pl, size = p.stage === 'ext' ? 9 : 6;
-    $('#pfill').style.width = `${Math.min(100, ((p.li + p.asked / size) / SECTIONS.length) * 100)}%`;
+    const p = L.pl;
+    $('#pfill').style.width = `${Math.min(100, ((p.li + p.asked / PL_SIZE) / SECTIONS.length) * 100)}%`;
     $('#pltag').textContent = `Seviye tespiti · ${SECTIONS[p.li].level} soruları`;
-    $('#pcount').textContent = '';
+    $('#pcount').textContent = `${Math.min(p.asked + 1, PL_SIZE)} / ${PL_SIZE}`;
     return;
   }
   $('#pfill').style.width = `${(L.done / L.total) * 100}%`;
@@ -1084,7 +1084,6 @@ function updateProgress() {
 function doCheck() {
   if (!L.evaluate) return;
   const r = L.evaluate();
-  if (L.mode === 'placement') $$('.is-correct, .is-wrong', $('#ex')).forEach(b => b.classList.remove('is-correct', 'is-wrong'));
   handleResult(r);
 }
 
@@ -1125,15 +1124,8 @@ function handleResult(r) {
   L.phase = 'feedback';
   const e = L.cur;
   $('#ex').classList.add('locked');
-  if (L.mode === 'placement') {
-    // Sınavda doğru/yanlış gösterilmez; cevap kaydedilip sıradaki soruya geçilir
-    L.pl.asked++; if (r.correct) L.pl.correct++;
-    $('#check').disabled = true; $('#skip').style.display = 'none';
-    sfx.tap();
-    setTimeout(() => { if (L && L.mode === 'placement') next(); }, 350);
-    return;
-  }
-  markWords(e.words, r.correct);
+  if (L.mode === 'placement') placementRecord(e, r.correct);
+  else markWords(e.words, r.correct);
   const foot = $('#foot');
   const check = $('#check');
   $('#skip').style.display = 'none';
@@ -1161,7 +1153,7 @@ function handleResult(r) {
     }
   } else {
     L.mistakes++; L.combo = 0;
-    if (e.src && !r.skipped) { recordMistake(e.src, r.note); L.newMistakes = (L.newMistakes || 0) + 1; }
+    if (e.src && !r.skipped && L.mode !== 'placement') { recordMistake(e.src, r.note); L.newMistakes = (L.newMistakes || 0) + 1; }
     foot.className = 'lesson-foot wrong';
     check.className = 'btn bad';
     const body = `<b>${esc(e.answerText)}</b>${e.meaning ? `<small>Anlamı: ${esc(e.meaning)}</small>` : ''}${r.note ? `<small>${r.note}</small>` : ''}`;
@@ -1174,7 +1166,7 @@ function handleResult(r) {
       lh.classList.remove('shake'); void lh.offsetWidth; lh.classList.add('shake');
     }
     // Yanlış cevaplanan soruyu sona ekle (en fazla 2 kez)
-    if (e.tries < 2 && L.mode !== 'test') L.queue.push({ ...e, tries: e.tries + 1 });
+    if (e.tries < 2 && L.mode !== 'test' && L.mode !== 'placement') L.queue.push({ ...e, tries: e.tries + 1 });
     else L.done++;
   }
   save();
@@ -1369,7 +1361,7 @@ function tileExercise(e, root, header) {
       chosen.splice(chosen.indexOf(+b.dataset.c), 1); sfx.tap(); redraw();
     }));
     api.ready(chosen.length > 0);
-    if (L.mode !== 'placement' && chosen.length && exactMatch(chosen.map(i => e.tiles[i]).join(' '), e.answers, e.lang)) setTimeout(() => api.submit(), 120);
+    if (chosen.length && exactMatch(chosen.map(i => e.tiles[i]).join(' '), e.answers, e.lang)) setTimeout(() => api.submit(), 120);
   };
   bankBtns.forEach((b, i) => b.addEventListener('click', () => {
     if (chosen.includes(i)) return;
@@ -1550,104 +1542,143 @@ R.mcq = (e, root) => {
 
 const hasTTS = () => 'speechSynthesis' in window && voices.length > 0;
 
-// Bir seviye için karma soru bloğu: dilbilgisi, kelime, dinleme, diyalog, yazma
-function placementBlock(li, ext) {
-  const lvl = SECTIONS[li].level;
-  const units = UNITS.filter(u => u.level === lvl);
-  const words = units.flatMap(u => u.words);
-  const sents = units.flatMap(u => u.sentences);
-  const dialogs = units.flatMap(u => u.dialogs);
-  const used = L.pl.used;
-  const mcq = () => {
-    const free = PLACEMENT_BANK[lvl].filter(q => !used.has(q[0]));
-    const q = pickOne(free.length ? free : PLACEMENT_BANK[lvl]);
-    used.add(q[0]);
-    return ex.mcq(q);
-  };
-  const sent = () => { const free = sents.filter(s => !used.has(s.en)); const s = pickOne(free.length ? free : sents); used.add(s.en); return s; };
-  const list = [];
-  if (ext) {
-    list.push(mcq(), mcq(), lvl === 'A1' ? ex.build(sent(), sents, words, 'en') : ex.sentChoice(sent(), words));
-  } else if (lvl === 'A1') {
-    list.push(mcq(), mcq(), mcq(), ex.choice(pickOne(words), words));
-    list.push(hasTTS() ? ex.build(sent(), sents, words, 'en', 'listen') : mcq());
-    list.push(ex.build(sent(), sents, words, 'en'));
-  } else {
-    list.push(mcq(), mcq(), ex.choiceRev(pickOne(words), words));
-    list.push(ex.reply(pickOne(dialogs), dialogs, false));
-    list.push(hasTTS() ? ex.listenPick(sent(), words) : mcq());
-    list.push(ex.sentChoice(sent(), words));
-  }
-  return shuffle(list).map(e => ({ ...e, tries: 0 }));
+// ---------- Seviye tespiti ----------
+// Her seviye kolaydan zora 3 dilime ayrılır (ör. A1'in 14 ünitesi: 1–5, 6–10, 11–14).
+// Her dilimden o ünitelerin içeriğiyle 3 soru + seviye genelinden 3 dilbilgisi sorusu = 12 soru.
+// Seviye geçilirse bir üst seviyeye geçilir; geçilemezse ilk zorlanılan dilimin ilk ünitesinden başlanır.
+const PL_BANDS = 3, PL_PER_BAND = 3, PL_MCQ = 3;
+const PL_SIZE = PL_BANDS * PL_PER_BAND + PL_MCQ;
+const PL_BAND_NAMES = ['başı', 'ortası', 'sonu'];
+
+// Seviyenin ünitelerini 3 dilime böler; her dilim için ünite indeksleri döner
+function levelBands(li) {
+  const idx = UNITS.map((u, i) => i).filter(i => UNITS[i].level === SECTIONS[li].level);
+  const size = Math.ceil(idx.length / PL_BANDS);
+  return [...Array(PL_BANDS)].map((_, b) => idx.slice(b * size, (b + 1) * size));
 }
+
+function placementBlock(li) {
+  const lvl = SECTIONS[li].level;
+  const used = L.pl.used;
+  const fresh = (list, key) => { const free = list.filter(x => !used.has(key(x))); const x = pickOne(free.length ? free : list); used.add(key(x)); return x; };
+  const list = [];
+  levelBands(li).forEach((unitIdx, band) => {
+    const units = unitIdx.map(i => UNITS[i]);
+    const words = units.flatMap(u => u.words);
+    const sents = units.flatMap(u => u.sentences);
+    const dialogs = units.flatMap(u => u.dialogs);
+    const w = fresh(words, x => 'w:' + x.en);
+    const s1 = fresh(sents, x => 's:' + x.en);
+    const s2 = fresh(sents, x => 's:' + x.en);
+    const items = [
+      lvl === 'A1' ? ex.choice(w, words) : ex.choiceRev(w, words),
+      lvl === 'A1' ? ex.build(s1, sents, words, 'en') : ex.sentChoice(s1, words),
+      dialogs.length ? ex.reply(fresh(dialogs, x => 'd:' + x[0]), dialogs, lvl === 'A1')
+        : hasTTS() ? ex.listenPick(s2, words) : ex.sentChoice(s2, words),
+    ];
+    // Dilim içinde kolaydan zora: kelime → cümle → diyalog/dinleme
+    items.forEach(e => list.push({ ...e, band }));
+  });
+  const mcqs = [...Array(PL_MCQ)].map(() => ({ ...ex.mcq(fresh(PLACEMENT_BANK[lvl], q => 'q:' + q[0])), band: -1 }));
+  // Dilbilgisi sorularını dilimlerin arasına yerleştir
+  list.splice(3, 0, mcqs[0]); list.splice(7, 0, mcqs[1]); list.push(mcqs[2]);
+  return list.map(e => ({ ...e, tries: 0 }));
+}
+
+const plNew = li => ({ li, asked: 0, correct: 0, bands: [...Array(PL_BANDS)].map(() => ({ c: 0, t: 0 })), mcq: { c: 0, t: 0 } });
 
 function startPlacement() {
   closeModal();
-  const cfg = { mode: 'placement', exercises: [] };
-  // startSession'dan önce blok üretebilmek için geçici oturum
-  L = { pl: { li: 0, stage: 'main', asked: 0, correct: 0, passed: -1, scores: [], used: new Set() } };
-  cfg.exercises = placementBlock(0, false);
+  L = { pl: Object.assign(plNew(0), { scores: [], used: new Set(), start: null }) };
   const pl = L.pl;
-  startSession(Object.assign(cfg, { pl }));
+  const exercises = placementBlock(0);
+  startSession({ mode: 'placement', exercises, pl });
 }
 
-// Sıradaki bloğa geçilecekse true döner
+function placementRecord(e, correct) {
+  const p = L.pl;
+  p.asked++; if (correct) p.correct++;
+  const slot = e.band >= 0 ? p.bands[e.band] : p.mcq;
+  slot.t++; if (correct) slot.c++;
+}
+
+// Sıradaki seviyeye geçilecekse true döner
 function placementAdvance() {
   const p = L.pl;
-  let verdict;
-  if (p.stage === 'main') verdict = p.correct >= 5 ? 'pass' : p.correct <= 3 ? 'fail' : 'ext';
-  else verdict = p.correct >= 7 ? 'pass' : 'fail';
-  if (verdict === 'ext') { p.stage = 'ext'; L.queue.push(...placementBlock(p.li, true)); return true; }
-  p.scores.push({ level: SECTIONS[p.li].level, correct: p.correct, total: p.asked, passed: verdict === 'pass' });
-  if (verdict === 'fail') return false;
-  p.passed = p.li;
-  if (p.li + 1 >= SECTIONS.length) return false;
-  Object.assign(p, { li: p.li + 1, stage: 'main', asked: 0, correct: 0 });
-  L.queue.push(...placementBlock(p.li, false));
+  const bandsOk = p.bands.map(b => b.c >= Math.ceil(b.t * 2 / 3));
+  const passed = p.correct >= Math.ceil(PL_SIZE * 0.75) && bandsOk.every(Boolean);
+  p.scores.push({ li: p.li, level: SECTIONS[p.li].level, correct: p.correct, total: p.asked, passed, bands: p.bands.map(b => ({ ...b })), bandsOk, mcq: { ...p.mcq } });
+  if (!passed || p.li + 1 >= SECTIONS.length) return false;
+  Object.assign(p, plNew(p.li + 1));
+  L.queue.push(...placementBlock(p.li));
   return true;
+}
+
+// Sınav sonucundan başlangıç noktasını hesaplar
+function placementResult(p) {
+  const last = p.scores[p.scores.length - 1];
+  if (last.passed) return { allDone: true, target: TOTAL_LESSONS, code: 'B1+', title: 'Orta seviye ve üstü', li: SECTIONS.length - 1, band: PL_BANDS };
+  const li = last.li;
+  let band = last.bandsOk.findIndex(ok => !ok);
+  if (band < 0) band = PL_BANDS - 1; // içerik iyi ama dilbilgisi zayıf: son dilimden tekrar
+  const unit = levelBands(li)[band][0];
+  const lvl = SECTIONS[li].level;
+  const code = band === 0 ? (li === 0 ? 'A0' : SECTIONS[li - 1].level) : lvl;
+  const title = band === 0 ? (li === 0 ? 'Başlangıç' : `${SECTIONS[li - 1].level} tamam, ${lvl} başlangıcı`) : `${lvl} ${PL_BAND_NAMES[band]}`;
+  return { allDone: false, target: unit * LPU, unit, code, title, li, band };
 }
 
 function finishPlacement() {
   const p = L.pl;
   const secs = Math.round((Date.now() - L.start) / 1000);
   L = null;
-  const result = PLACEMENT_LEVELS[p.passed + 1];
-  const startSec = p.passed + 1; // başlanacak bölüm
-  const target = startSec >= SECTIONS.length ? TOTAL_LESSONS : sectionStartUnit(startSec) * LPU;
-  const lower = target < S.progress;
-  const rows = SECTIONS.map(sec => {
-    const sc = p.scores.find(x => x.level === sec.level);
-    if (!sc) return `<div class="pl-row off"><span class="pl-lvl">${sec.level}</span><div class="bar"><div style="width:0"></div></div><span class="pl-res">—</span></div>`;
+  const res = placementResult(p);
+  const lower = res.target < S.progress;
+  const totalQ = p.scores.reduce((a, b) => a + b.total, 0);
+  const totalC = p.scores.reduce((a, b) => a + b.correct, 0);
+  const rows = SECTIONS.map((sec, li) => {
+    const sc = p.scores.find(x => x.li === li);
+    if (!sc) return `<div class="pl-level off"><div class="pl-row"><span class="pl-lvl">${sec.level}</span><div class="bar"><div style="width:0"></div></div><span class="pl-res">—</span></div></div>`;
     const pct = Math.round(sc.correct / sc.total * 100);
-    return `<div class="pl-row"><span class="pl-lvl">${sec.level}</span><div class="bar"><div style="width:${pct}%;background:${sc.passed ? 'var(--ok)' : 'var(--bad)'}"></div></div><span class="pl-res">${sc.correct}/${sc.total} ${sc.passed ? '✅' : '❌'}</span></div>`;
+    const bands = levelBands(li).map((u, b) => `<span class="pl-band ${sc.bandsOk[b] ? 'ok' : 'no'}" title="Ünite ${u[0] + 1}–${u[u.length - 1] + 1}">${sec.level} ${PL_BAND_NAMES[b]} · ${sc.bands[b].c}/${sc.bands[b].t}</span>`).join('');
+    return `<div class="pl-level"><div class="pl-row"><span class="pl-lvl">${sec.level}</span><div class="bar"><div style="width:${pct}%;background:${sc.passed ? 'var(--ok)' : 'var(--accent)'}"></div></div><span class="pl-res">${sc.correct}/${sc.total} ${sc.passed ? '✅' : ''}</span></div>
+      <div class="pl-bands">${bands}<span class="pl-band ${sc.mcq.c >= 2 ? 'ok' : 'no'}">Dilbilgisi · ${sc.mcq.c}/${sc.mcq.t}</span></div></div>`;
   }).join('');
-  const startLabel = startSec >= SECTIONS.length ? 'Tüm dersler açık, devam et' : `${SECTIONS[startSec].level} seviyesinden başla`;
-
+  const startUnit = res.allDone ? null : UNITS[res.unit];
+  const desc = res.allDone
+    ? 'Tüm seviyelerde başarılısın. Bütün dersler açıldı; tekrar ve pratik için kullanabilirsin.'
+    : res.unit === 0
+      ? 'En temelden başlayacağız. Her ders bir öncekinin üzerine kurulu, adım adım ilerleyeceksin.'
+      : `Önceki ${res.unit} ünite tamamlanmış sayılacak (istersen yine açıp tekrar edebilirsin). Sana en uygun yer burası.`;
   sfx.win();
   $('#app').innerHTML = `
     <div class="result">
-      ${mascot('wow', 'bounce')}
-      <div class="ex-kind" style="justify-content:center">Seviye tespiti tamamlandı</div>
-      <div class="pl-badge">${result.code}</div>
-      <h1>${esc(result.title)}</h1>
-      <p class="muted" style="max-width:440px;color:var(--muted)">${esc(result.desc)}</p>
-      <div class="panel pl-table">${rows}<div class="bar-label"><span>${p.scores.reduce((a, b) => a + b.total, 0)} soru</span><span>⏱ ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}</span></div></div>
-      ${lower ? '<p class="muted" style="color:var(--muted)">Mevcut ilerlemen bu seviyenin üstünde, o yüzden korunacak.</p>' : ''}
-      <div class="result-foot" style="flex-direction:column;align-items:center;gap:10px">
-        <button class="btn primary" id="pl-go">${startLabel}</button>
-        ${startSec > 0 && !lower ? '<button class="btn ghost" id="pl-zero" style="width:100%;max-width:420px">A1\'den baştan başla</button>' : ''}
+      <div class="result-card">
+        <div class="rc-head">${mascot('wow', 'bounce')}<div><div class="kicker">Seviye tespiti tamamlandı · ${totalC}/${totalQ} doğru</div><h1>${esc(res.title)}</h1></div></div>
+        <div class="pl-summary">
+          <div class="pl-badge">${res.code}</div>
+          <div class="pl-start">${startUnit ? `<div class="kicker">Başlangıç noktan</div><h3>${startUnit.icon} Ünite ${res.unit + 1}: ${esc(startUnit.title)}</h3><p class="muted">${startUnit.level} · ${esc(startUnit.desc)}</p>` : '<h3>🏁 Tüm hat açık</h3>'}</div>
+        </div>
+        <p class="pl-desc muted">${esc(desc)}</p>
+        <div class="pl-table">${rows}</div>
+        <div class="bar-label pl-foot"><span>${totalQ} soru</span><span>⏱ ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}</span></div>
+        ${lower ? '<p class="pl-desc muted">Mevcut ilerlemen bu noktanın ilerisinde, o yüzden korunacak.</p>' : ''}
+      </div>
+      <div class="result-foot">
+        <button class="btn primary" id="pl-go">${res.allDone ? 'Tüm dersler açık, devam et' : `Ünite ${res.unit + 1}'den başla`}</button>
+        ${res.target > 0 && !lower ? '<button class="btn ghost" id="pl-zero" style="width:100%;max-width:520px">En baştan başla</button>' : ''}
       </div>
     </div>`;
   confetti();
   const apply = prog => {
     S.onboarded = true;
-    S.placement = { level: result.code, date: dayKey() };
+    S.placement = { level: res.code, date: dayKey(), unit: res.allDone ? null : res.unit + 1 };
     S.progress = Math.max(S.progress, prog);
     S.tab = 'learn';
     save(); renderApp();
-    if (prog > 0) toast(`🎯 ${result.code} seviyesi kaydedildi. Önceki dersler açıldı!`);
+    if (prog > 0) toast(`🎯 ${res.code} seviyesi kaydedildi. Önceki dersler açıldı!`);
   };
-  $('#pl-go').addEventListener('click', () => apply(target));
+  $('#pl-go').addEventListener('click', () => apply(res.target));
   const z = $('#pl-zero');
   if (z) z.addEventListener('click', () => apply(0));
 }
@@ -1660,9 +1691,9 @@ function renderWelcome() {
       <p class="muted">Dilbaz ile İngilizceyi oyun oynar gibi öğreneceksin. Önce nereden başlayacağımıza karar verelim.</p>
       <div class="welcome-cards">
         <button class="practice-card" id="w-new"><div class="pi">🌱</div><div><h3>İngilizceye yeni başlıyorum</h3><p>En temelden, A1 seviyesinden başla.</p></div></button>
-        <button class="practice-card" id="w-test"><div class="pi">🎯</div><div><h3>Biraz İngilizce biliyorum</h3><p>Kısa bir seviye tespit sınavına gir, sana uygun seviyeden başla.</p></div></button>
+        <button class="practice-card" id="w-test"><div class="pi">🎯</div><div><h3>Biraz İngilizce biliyorum</h3><p>Seviye tespit sınavına gir, sana tam uygun üniteden başla.</p></div></button>
       </div>
-      <p class="welcome-note">Sınav yaklaşık 5–10 dakika sürer. Soruların zorluğu cevaplarına göre ayarlanır: başarılı oldukça daha zor sorular gelir. Bilmediğin soruda tahmin etme, <b>Bilmiyorum</b>'a bas; sonuç daha doğru çıkar.</p>
+      <p class="welcome-note">Sınav seviye başına 12 sorudan oluşur (toplam 12–36 soru, yaklaşık 5–15 dakika). Başarılı oldukça bir üst seviyeye geçersin. Sonunda seni tam seviyene uygun <b>üniteden</b> başlatırız. Bilmediğin soruda tahmin etme, <b>Bilmiyorum</b>'a bas; sonuç daha doğru çıkar.</p>
     </div>`;
   $('#w-new').addEventListener('click', () => { S.onboarded = true; save(); renderApp(); });
   $('#w-test').addEventListener('click', startPlacement);

@@ -6,7 +6,7 @@ Oyunlaştırılmış, tarayıcıda çalışan bir İngilizce öğrenme uygulamas
 
 ## Özellikler
 
-- Uyarlanabilir seviye tespit sınavı (A0 – B1+)
+- Uyarlanabilir seviye tespit sınavı: seviye başına 12 soru (12–36 soru), her seviye 3 dilimde ölçülür ve kullanıcı tam uygun üniteden başlatılır; her sorudan sonra doğru/yanlış geri bildirimi
 - 3 bölüm, 37 ünite, 148 ders: A1 Temeller (14) · A2 Günlük Hayat (12) · B1 Akıcı Konuşma (11)
 - 370 kelime, 374 örnek cümle, 197 gerçek hayat diyaloğu
 - Tamamen tıklamalı egzersizler (klavye ve mikrofon gerekmez): resimli kelime, anlam seçme, kelime kartlarıyla cümle kurma, doğru çeviriyi bulma, dinleyip cümle/kelime seçme, boşluk doldurma, eşleştirme, gerçek hayat diyalogları
