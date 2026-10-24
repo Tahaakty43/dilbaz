@@ -1049,6 +1049,7 @@ const api = {
 function next() {
   if (!L.queue.length && L.mode === 'placement' && placementAdvance()) return next();
   if (!L.queue.length) return finish();
+  clearTimeout(L.autoNext);
   L.cur = L.queue.shift();
   L.phase = 'answer'; L.evaluate = null;
   const foot = $('#foot');
@@ -1059,7 +1060,7 @@ function next() {
   const skip = $('#skip');
   skip.style.display = L.cur.type === 'match' ? 'none' : '';
   skip.textContent = L.mode === 'placement' ? 'Bilmiyorum' : LISTEN_TYPES.includes(L.cur.type) && L.mode !== 'test' ? 'Şu an dinleyemiyorum' : 'Geç';
-  check.style.display = L.cur.type === 'match' ? 'none' : '';
+  check.style.display = L.cur.type === 'match' || L.cur.options ? 'none' : '';
   const root = $('#ex');
   root.className = 'ex';
   void root.offsetWidth; // animasyonu yeniden başlat
@@ -1153,6 +1154,7 @@ function handleResult(r) {
     $('#fmsg').innerHTML = `<div class="fm-icon">${ICON.check}</div><div><h3>${pickOne(PRAISE)} ${replay}</h3>${body ? `<div class="fm-body">${body}</div>` : ''}</div>`;
     sfx.ok();
     if (e.audio && e.type !== 'listen') speak(e.audio);
+    L.autoNext = setTimeout(() => { if (L && L.phase === 'feedback' && L.cur === e) next(); }, 1100);
     if ([3, 5, 10, 15].includes(L.combo)) {
       $('#combo').innerHTML = `<div class="combo-tag">🔥 Üst üste ${L.combo} doğru!</div>`;
       setTimeout(() => { const c = $('#combo'); if (c) c.innerHTML = ''; }, 1800);
@@ -1308,8 +1310,8 @@ function bindOptions(root, selector, onPick) {
   btns.forEach((b, i) => b.addEventListener('click', () => {
     btns.forEach(x => x.classList.remove('selected'));
     b.classList.add('selected');
-    sfx.tap();
     onPick(i, b);
+    setTimeout(() => api.submit(), 150);
   }));
   return btns;
 }
@@ -1367,6 +1369,7 @@ function tileExercise(e, root, header) {
       chosen.splice(chosen.indexOf(+b.dataset.c), 1); sfx.tap(); redraw();
     }));
     api.ready(chosen.length > 0);
+    if (L.mode !== 'placement' && chosen.length && exactMatch(chosen.map(i => e.tiles[i]).join(' '), e.answers, e.lang)) setTimeout(() => api.submit(), 250);
   };
   bankBtns.forEach((b, i) => b.addEventListener('click', () => {
     if (chosen.includes(i)) return;
