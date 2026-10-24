@@ -1059,7 +1059,7 @@ function next() {
   check.textContent = 'Kontrol et'; check.className = 'btn ok'; check.disabled = true;
   const skip = $('#skip');
   skip.style.display = L.cur.type === 'match' ? 'none' : '';
-  skip.textContent = L.mode === 'placement' ? 'Bilmiyorum' : LISTEN_TYPES.includes(L.cur.type) && L.mode !== 'test' ? 'Şu an dinleyemiyorum' : 'Geç';
+  skip.textContent = LISTEN_TYPES.includes(L.cur.type) ? 'Şu an dinleyemiyorum' : L.mode === 'placement' ? 'Bilmiyorum' : 'Geç';
   check.style.display = L.cur.type === 'match' || L.cur.options ? 'none' : '';
   const root = $('#ex');
   root.className = 'ex';
@@ -1072,9 +1072,10 @@ function next() {
 function updateProgress() {
   if (L.mode === 'placement') {
     const p = L.pl;
-    $('#pfill').style.width = `${Math.min(100, ((p.li + p.asked / PL_SIZE) / SECTIONS.length) * 100)}%`;
+    const seen = p.asked + p.skipped;
+    $('#pfill').style.width = `${Math.min(100, ((p.li + seen / PL_SIZE) / SECTIONS.length) * 100)}%`;
     $('#pltag').textContent = `Seviye tespiti · ${SECTIONS[p.li].level} soruları`;
-    $('#pcount').textContent = `${Math.min(p.asked + 1, PL_SIZE)} / ${PL_SIZE}`;
+    $('#pcount').textContent = `${Math.min(seen + 1, PL_SIZE)} / ${PL_SIZE}`;
     return;
   }
   $('#pfill').style.width = `${(L.done / L.total) * 100}%`;
@@ -1096,15 +1097,13 @@ function onMainButton() {
 
 function onSkip() {
   if (!L || L.phase !== 'answer') return;
-  if (L.mode === 'placement') { handleResult({ correct: false, skipped: true }); return; }
-  const group = LISTEN_TYPES;
-  if (group.includes(L.cur.type) && L.mode !== 'test') {
-    // Ceza yok: bu türdeki kalan egzersizleri bu oturumdan çıkar
-    const removed = L.queue.filter(e => group.includes(e.type)).length;
-    L.queue = L.queue.filter(e => !group.includes(e.type));
-    L.total -= removed + 1;
-    if (L.total < 1) L.total = 1;
-    toast('Dinleme egzersizleri bu ders için kapatıldı.');
+  if (LISTEN_TYPES.includes(L.cur.type)) {
+    const removed = 1 + L.queue.filter(e => LISTEN_TYPES.includes(e.type)).length;
+    L.queue = L.queue.filter(e => !LISTEN_TYPES.includes(e.type));
+    L.noListen = true;
+    if (L.mode === 'placement') L.pl.skipped += removed;
+    else L.total = Math.max(1, L.total - removed);
+    toast('🎧 Dinleme soruları bu oturumda atlandı. Puanını etkilemez.');
     next();
     return;
   }
@@ -1185,7 +1184,7 @@ function testFailed() {
 function finish() {
   if (L.mode === 'placement') return finishPlacement();
   const secs = Math.round((Date.now() - L.start) / 1000);
-  const firstTry = L.exercises.length;
+  const firstTry = L.total;
   const acc = Math.round(firstTry / (firstTry + L.mistakes) * 100);
   const perfect = L.mistakes === 0;
   let xp;
@@ -1574,7 +1573,7 @@ function placementBlock(li) {
       lvl === 'A1' ? ex.choice(w, words) : ex.choiceRev(w, words),
       lvl === 'A1' ? ex.build(s1, sents, words, 'en') : ex.sentChoice(s1, words),
       dialogs.length ? ex.reply(fresh(dialogs, x => 'd:' + x[0]), dialogs, lvl === 'A1')
-        : hasTTS() ? ex.listenPick(s2, words) : ex.sentChoice(s2, words),
+        : hasTTS() && !L.noListen ? ex.listenPick(s2, words) : ex.sentChoice(s2, words),
     ];
     // Dilim içinde kolaydan zora: kelime → cümle → diyalog/dinleme
     items.forEach(e => list.push({ ...e, band }));
@@ -1585,7 +1584,7 @@ function placementBlock(li) {
   return list.map(e => ({ ...e, tries: 0 }));
 }
 
-const plNew = li => ({ li, asked: 0, correct: 0, bands: [...Array(PL_BANDS)].map(() => ({ c: 0, t: 0 })), mcq: { c: 0, t: 0 } });
+const plNew = li => ({ li, asked: 0, skipped: 0, correct: 0, bands: [...Array(PL_BANDS)].map(() => ({ c: 0, t: 0 })), mcq: { c: 0, t: 0 } });
 
 function startPlacement() {
   closeModal();
@@ -1606,7 +1605,7 @@ function placementRecord(e, correct) {
 function placementAdvance() {
   const p = L.pl;
   const bandsOk = p.bands.map(b => b.c >= Math.ceil(b.t * 2 / 3));
-  const passed = p.correct >= Math.ceil(PL_SIZE * 0.75) && bandsOk.every(Boolean);
+  const passed = p.asked > 0 && p.correct >= Math.ceil(p.asked * 0.75) && bandsOk.every(Boolean);
   p.scores.push({ li: p.li, level: SECTIONS[p.li].level, correct: p.correct, total: p.asked, passed, bands: p.bands.map(b => ({ ...b })), bandsOk, mcq: { ...p.mcq } });
   if (!passed || p.li + 1 >= SECTIONS.length) return false;
   Object.assign(p, plNew(p.li + 1));
