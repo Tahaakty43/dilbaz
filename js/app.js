@@ -1154,7 +1154,7 @@ function handleResult(r) {
     $('#fmsg').innerHTML = `<div class="fm-icon">${ICON.check}</div><div><h3>${pickOne(PRAISE)} ${replay}</h3>${body ? `<div class="fm-body">${body}</div>` : ''}</div>`;
     sfx.ok();
     if (e.audio && e.type !== 'listen') speak(e.audio);
-    L.autoNext = setTimeout(() => { if (L && L.phase === 'feedback' && L.cur === e) next(); }, 1100);
+    L.autoNext = setTimeout(() => { if (L && L.phase === 'feedback' && L.cur === e) next(); }, 550);
     if ([3, 5, 10, 15].includes(L.combo)) {
       $('#combo').innerHTML = `<div class="combo-tag">🔥 Üst üste ${L.combo} doğru!</div>`;
       setTimeout(() => { const c = $('#combo'); if (c) c.innerHTML = ''; }, 1800);
@@ -1311,7 +1311,7 @@ function bindOptions(root, selector, onPick) {
     btns.forEach(x => x.classList.remove('selected'));
     b.classList.add('selected');
     onPick(i, b);
-    setTimeout(() => api.submit(), 150);
+    setTimeout(() => api.submit(), 60);
   }));
   return btns;
 }
@@ -1369,7 +1369,7 @@ function tileExercise(e, root, header) {
       chosen.splice(chosen.indexOf(+b.dataset.c), 1); sfx.tap(); redraw();
     }));
     api.ready(chosen.length > 0);
-    if (L.mode !== 'placement' && chosen.length && exactMatch(chosen.map(i => e.tiles[i]).join(' '), e.answers, e.lang)) setTimeout(() => api.submit(), 250);
+    if (L.mode !== 'placement' && chosen.length && exactMatch(chosen.map(i => e.tiles[i]).join(' '), e.answers, e.lang)) setTimeout(() => api.submit(), 120);
   };
   bankBtns.forEach((b, i) => b.addEventListener('click', () => {
     if (chosen.includes(i)) return;

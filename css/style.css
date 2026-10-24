@@ -356,7 +356,11 @@ svg { flex: none; }
   border: none; background: var(--surface); color: var(--text); font-weight: 600;
   box-shadow: inset 0 0 0 1.5px var(--line-strong); transition: transform .1s, box-shadow .15s, background .15s, color .15s;
 }
-.card-opt:hover, .opt:hover, .pill:hover, .tile:hover, .match-btn:hover { box-shadow: inset 0 0 0 1.5px var(--brand); }
+@media (hover: hover) {
+  .card-opt:hover, .opt:hover, .pill:hover, .tile:hover, .match-btn:hover { box-shadow: inset 0 0 0 1.5px var(--muted); background: var(--surface-2); }
+}
+.card-opt:focus-visible, .opt:focus-visible, .pill:focus-visible, .tile:focus-visible, .match-btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.card-opt:focus:not(:focus-visible), .opt:focus:not(:focus-visible), .pill:focus:not(:focus-visible), .tile:focus:not(:focus-visible), .match-btn:focus:not(:focus-visible) { outline: none; }
 .card-opt:active, .opt:active, .pill:active, .tile:active, .match-btn:active { transform: scale(.98); }
 .card-opt { border-radius: 18px; padding: 16px 10px 14px; display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative; font-size: 16px; }
 .card-emoji { font-size: 58px; line-height: 1.1; width: 86px; height: 86px; display: grid; place-items: center; border-radius: 50%; background: var(--surface-2); }
@@ -364,8 +368,8 @@ svg { flex: none; }
 .opts { display: flex; flex-direction: column; gap: 10px; }
 .opt { display: flex; align-items: center; gap: 12px; padding: 15px 16px; border-radius: 16px; font-size: 16.5px; text-align: left; position: relative; }
 .opt .kbd { position: static; flex: none; }
-.selected { background: var(--brand-soft) !important; box-shadow: inset 0 0 0 2px var(--brand) !important; color: var(--brand) !important; }
-.selected .kbd { background: var(--brand); color: #fff; }
+.selected { background: var(--surface-2) !important; box-shadow: inset 0 0 0 2px var(--ink) !important; color: var(--ink) !important; }
+.selected .kbd { background: var(--ink); color: var(--surface); }
 .is-correct { background: var(--ok-soft) !important; box-shadow: inset 0 0 0 2px var(--ok) !important; color: var(--ok) !important; }
 .is-correct .kbd { background: var(--ok); color: #fff; }
 .is-wrong { background: var(--accent-soft) !important; box-shadow: inset 0 0 0 2px var(--accent) !important; color: var(--accent-dark) !important; }
