@@ -54,22 +54,56 @@ const ICON = {
   heart: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7.5-4.6-9.6-9.4C.9 8.1 3 4 6.9 4c2.2 0 3.7 1.2 5.1 3 1.4-1.8 2.9-3 5.1-3C21 4 23.1 8.1 21.6 11.6 19.5 16.4 12 21 12 21z"/></svg>',
   fire: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c1 3.5 5.5 6 5.5 11a5.5 5.5 0 0 1-11 0c0-2.4 1.2-4 2.4-5.2.2 1.7.9 2.8 2.1 3.4C10.5 8 11 5 12 2z"/></svg>',
   bolt: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13.5 2L4 13.5h6.5L9.5 22 20 9.5h-6.6z"/></svg>',
+  home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>',
+  target: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></svg>',
+  book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5"/><path d="M9 7h6"/></svg>',
+  user: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>',
+  play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.9l10-6.5a1 1 0 0 0 0-1.7l-10-6.6A1 1 0 0 0 8 5.5z"/></svg>',
+  replay: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 3-6.2"/><path d="M4 4v5h5"/></svg>',
+  guide: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6c-2-1.5-5-2-8-1.5V19c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5V4.5c-3-.5-6 0-8 1.5z"/><path d="M12 6v14.5"/></svg>',
 };
 
-// Özgün maskot: "Pıtır" — mor bir konuşma balonu
+// Yüzde halkası (SVG)
+function ring(pct, size = 120, stroke = 12, inner = '') {
+  const r = (size - stroke) / 2, c = 2 * Math.PI * r, off = c * (1 - clamp(pct, 0, 100) / 100);
+  return `<div class="ring" style="width:${size}px;height:${size}px">
+    <svg viewBox="0 0 ${size} ${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="var(--ring-bg)" stroke-width="${stroke}"/>
+    <circle cx="${size / 2}" cy="${size / 2}" r="${r}" fill="none" stroke="url(#ringGrad)" stroke-width="${stroke}" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}" transform="rotate(-90 ${size / 2} ${size / 2})"/>
+    <defs><linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--brand-2)"/><stop offset="1" stop-color="var(--brand)"/></linearGradient></defs></svg>
+    <div class="ring-in">${inner}</div></div>`;
+}
+
+// Ünite kartının üstündeki resimli sahne
+const ART_SPOTS = [[10, 18, 30, -12], [74, 14, 34, 10], [84, 58, 26, -6], [16, 62, 24, 14], [48, 70, 22, 0]];
+function unitArt(u, locked) {
+  const decor = u.words.filter(w => w.emoji).slice(0, 5).map((w, i) => {
+    const [x, y, sz, rot] = ART_SPOTS[i];
+    return `<span class="ua-e" style="left:${x}%;top:${y}%;font-size:${sz}px;transform:rotate(${rot}deg)">${w.emoji}</span>`;
+  }).join('');
+  return `<div class="uart ${locked ? 'locked' : ''}" style="--u:${u.color}">
+    <span class="ua-blob b1"></span><span class="ua-blob b2"></span>${decor}<span class="ua-main">${u.icon}</span></div>`;
+}
+
+// Cümledeki kelimelerin emojilerinden küçük bir sahne
+function scene(e) {
+  const em = [...new Set((e.words || []).map(w => (findWord(w) || {}).emoji).filter(Boolean))].slice(0, 4);
+  return em.length ? `<div class="scene">${em.map(x => `<span>${x}</span>`).join('')}</div>` : '';
+}
+
+// Özgün maskot: "Pıtır" — petrol yeşili bir konuşma balonu
 function mascot(mood = 'happy', cls = '') {
   const mouth = {
     happy: '<path d="M46 64q14 13 28 0" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round"/>',
     sad: '<path d="M47 71q13-10 26 0" fill="none" stroke="#fff" stroke-width="4.5" stroke-linecap="round"/>',
-    wow: '<ellipse cx="60" cy="68" rx="7" ry="8" fill="#2a1f5c"/>',
+    wow: '<ellipse cx="60" cy="68" rx="7" ry="8" fill="#13233F"/>',
     calm: '<path d="M50 66h20" stroke="#fff" stroke-width="4.5" stroke-linecap="round"/>',
   }[mood] || '';
   return `<svg class="mascot ${cls}" viewBox="0 0 120 120" aria-hidden="true">
-    <path d="M22 14H98A16 16 0 0 1 114 30V74A16 16 0 0 1 98 90H56L36 108V90H22A16 16 0 0 1 6 74V30A16 16 0 0 1 22 14Z" fill="#6C5CE7"/>
-    <path d="M22 14H98A16 16 0 0 1 114 30V40C80 30 40 30 6 40V30A16 16 0 0 1 22 14Z" fill="#8b7cff" opacity=".55"/>
-    <g class="eye"><circle cx="43" cy="46" r="11" fill="#fff"/><circle cx="45" cy="48" r="5.5" fill="#2a1f5c"/><circle cx="47" cy="45.5" r="1.8" fill="#fff"/></g>
-    <g class="eye"><circle cx="77" cy="46" r="11" fill="#fff"/><circle cx="79" cy="48" r="5.5" fill="#2a1f5c"/><circle cx="81" cy="45.5" r="1.8" fill="#fff"/></g>
-    <circle cx="30" cy="64" r="6" fill="#ff8fb1" opacity=".7"/><circle cx="90" cy="64" r="6" fill="#ff8fb1" opacity=".7"/>
+    <path d="M22 14H98A16 16 0 0 1 114 30V74A16 16 0 0 1 98 90H56L36 108V90H22A16 16 0 0 1 6 74V30A16 16 0 0 1 22 14Z" fill="#0E9F8B"/>
+    <path d="M22 14H98A16 16 0 0 1 114 30V40C80 30 40 30 6 40V30A16 16 0 0 1 22 14Z" fill="#3FD3BE" opacity=".5"/>
+    <g class="eye"><circle cx="43" cy="46" r="11" fill="#fff"/><circle cx="45" cy="48" r="5.5" fill="#13233F"/><circle cx="47" cy="45.5" r="1.8" fill="#fff"/></g>
+    <g class="eye"><circle cx="77" cy="46" r="11" fill="#fff"/><circle cx="79" cy="48" r="5.5" fill="#13233F"/><circle cx="81" cy="45.5" r="1.8" fill="#fff"/></g>
+    <circle cx="30" cy="64" r="6" fill="#FF7A59" opacity=".75"/><circle cx="90" cy="64" r="6" fill="#FF7A59" opacity=".75"/>
     ${mouth}
   </svg>`;
 }
@@ -626,10 +660,10 @@ function toast(msg) {
 //   ANA EKRAN
 // ==========================================================
 const TABS = [
-  { id: 'learn', icon: '🏠', label: 'Öğren' },
-  { id: 'practice', icon: '💪', label: 'Pratik' },
-  { id: 'words', icon: '📖', label: 'Kelimeler' },
-  { id: 'profile', icon: '👤', label: 'Profil' },
+  { id: 'learn', icon: 'home', label: 'Öğren' },
+  { id: 'practice', icon: 'target', label: 'Pratik' },
+  { id: 'words', icon: 'book', label: 'Kelimeler' },
+  { id: 'profile', icon: 'user', label: 'Profil' },
 ];
 
 function renderApp() {
@@ -639,19 +673,19 @@ function renderApp() {
     else { renderWelcome(); return; }
   }
   checkStreak();
-  const navBtns = TABS.map(t => `<button class="nav-btn ${S.tab === t.id ? 'active' : ''}" data-tab="${t.id}"><span class="ni">${t.icon}</span><span class="nt">${t.label}</span></button>`).join('');
+  const tabs = cls => TABS.map(t => `<button class="${cls} ${S.tab === t.id ? 'active' : ''}" data-tab="${t.id}">${ICON[t.icon]}<span>${t.label}</span></button>`).join('');
   $('#app').innerHTML = `
-    <div class="shell">
-      <aside class="sidenav">
-        <div class="logo">${mascot('happy')}<span>dilbaz</span></div>
-        ${navBtns}
-      </aside>
-      <main class="main"><div class="main-inner">
+    <div class="app">
+      <header class="topbar"><div class="tb-inner">
+        <div class="brand">${mascot('happy')}<span>Dilbaz</span></div>
+        <nav class="tabs">${tabs('tab')}</nav>
         ${topStats()}
-        <div id="page"></div>
-      </div></main>
-      <aside class="rightbar" id="rightbar">${rightbar()}</aside>
-      <nav class="bottomnav">${navBtns}</nav>
+      </div></header>
+      <div class="layout">
+        <main class="main" id="page"></main>
+        <aside class="side" id="rightbar">${rightbar()}</aside>
+      </div>
+      <nav class="tabbar">${tabs('tb')}</nav>
     </div>`;
   $$('[data-tab]').forEach(b => b.addEventListener('click', () => { S.tab = b.dataset.tab; save(); renderApp(); window.scrollTo(0, 0); }));
   ({ learn: renderLearn, practice: renderPractice, words: renderWords, profile: renderProfile }[S.tab] || renderLearn)();
@@ -660,41 +694,43 @@ function renderApp() {
 
 const currentLevel = () => UNITS[unitOf(Math.min(S.progress, TOTAL_LESSONS - 1))].level;
 function topStats() {
-  return `<div class="topstats">
-    <span class="flag" title="Şu anki seviyen">${currentLevel()}</span>
-    <span class="stat fire ${S.streak ? '' : 'off'}" title="Günlük seri">${ICON.fire}${S.streak}</span>
-    <span class="stat xp" title="Toplam XP">${ICON.bolt}${S.xp}</span>
-    <span class="stat hearts" title="Sınırsız can">${ICON.heart}∞</span>
+  return `<div class="chips">
+    <span class="chip level" title="Şu anki seviyen">${currentLevel()}</span>
+    <span class="chip fire ${S.streak ? '' : 'off'}" title="Günlük seri">${ICON.fire}<b>${S.streak}</b></span>
+    <span class="chip xp" title="Toplam XP">${ICON.star}<b>${S.xp}</b></span>
   </div>`;
+}
+
+// Son 7 günün aktiflik noktaları
+function weekDots() {
+  return [...Array(7)].map((_, i) => {
+    const d = new Date(); d.setDate(d.getDate() - (6 - i));
+    const on = (S.daily[dayKey(d)] || 0) > 0;
+    return `<div class="wd ${on ? 'on' : ''} ${i === 6 ? 'today' : ''}"><i>${on ? '🔥' : ''}</i><span>${DAYS_TR[d.getDay()][0]}</span></div>`;
+  }).join('');
 }
 
 function rightbar() {
   const goalPct = clamp(todayXp() / S.goal * 100, 0, 100);
   const wod = wordOfDay();
   return `
-    <div class="panel">
-      <div class="panel-row"><div class="big-emoji">🔥</div><div>
-        <h3 style="margin:0">${S.streak} günlük seri</h3>
-        <div class="muted">${S.lastActive === dayKey() ? 'Bugünkü dersini yaptın, harika!' : 'Seriyi sürdürmek için bugün bir ders bitir.'}</div>
-      </div></div>
+    <div class="panel goal-panel">
+      ${ring(goalPct, 92, 10, `<b>${todayXp()}</b><small>/ ${S.goal} XP</small>`)}
+      <div><h3>Günlük hedef</h3><p class="muted">${goalPct >= 100 ? 'Bugünkü hedefini tamamladın! 🎉' : `Hedefe ${Math.max(0, S.goal - todayXp())} XP kaldı.`}</p></div>
     </div>
     <div class="panel">
-      <h3>Günlük hedef</h3>
-      <div class="bar"><div style="width:${goalPct}%"></div></div>
-      <div class="bar-label"><span>${todayXp()} / ${S.goal} XP</span><span>${goalPct >= 100 ? '✅ Tamamlandı' : '🎯'}</span></div>
+      <h3>🔥 ${S.streak} günlük seri</h3>
+      <div class="week">${weekDots()}</div>
+      <p class="muted">${S.lastActive === dayKey() ? 'Bugünkü dersini yaptın, harika!' : 'Seriyi sürdürmek için bugün bir ders bitir.'}</p>
     </div>
-    ${S.progress > 0 ? `<div class="panel">
-      <div class="panel-row"><div class="big-emoji">🧠</div><div>
-        <h3 style="margin:0">${dueWords().length} kelime tekrar bekliyor</h3>
-        <div class="muted">${Object.keys(S.mistakes).length} cümle hata defterinde</div>
-      </div></div>
+    ${S.progress > 0 ? `<div class="panel mini-stats">
+      <div><b>${dueWords().length}</b><span>tekrar bekleyen kelime</span></div>
+      <div><b>${Object.keys(S.mistakes).length}</b><span>hata defterinde</span></div>
     </div>` : ''}
-    ${wod ? `<div class="panel">
-      <h3>Günün kelimesi</h3>
-      <div class="panel-row"><div class="big-emoji">${wod.emoji || '💬'}</div>
-        <div style="flex:1"><div style="font-size:20px;font-weight:900">${esc(wod.en)}</div><div class="muted">${esc(altsOf(wod.tr).join(', '))}</div></div>
-        <button class="speaker mini" data-wod="${esc(wod.en)}" aria-label="Dinle">${ICON.speaker}</button>
-      </div>
+    ${wod ? `<div class="panel wod">
+      <div class="wod-art">${wod.emoji || '💬'}</div>
+      <div style="flex:1;min-width:0"><div class="kicker">Günün kelimesi</div><div class="wod-en">${esc(wod.en)}</div><div class="muted">${esc(altsOf(wod.tr).join(', '))}</div></div>
+      <button class="speaker mini" data-wod="${esc(wod.en)}" aria-label="Dinle">${ICON.speaker}</button>
     </div>` : ''}`;
 }
 function wordOfDay() {
@@ -705,92 +741,97 @@ function wordOfDay() {
 }
 function bindWordOfDay() { $$('[data-wod]').forEach(b => b.addEventListener('click', () => speak(b.dataset.wod))); }
 
-// ---------- Öğren sekmesi (ders yolu) ----------
-const PATH_OFFSETS = [0, 56, 82, 46];
-
+// ---------- Öğren sekmesi (metro hattı) ----------
 function reviewCard() {
   if (S.progress <= 0) return '';
   const due = dueWords().length;
-  if (!due) return `<div class="review-card done"><div class="rc-icon">🧠</div><div class="rc-text"><b>Tekrarların tamam!</b><span>Kelimelerin hafızanda taze. Yeni bir ders yapabilirsin.</span></div></div>`;
-  return `<div class="review-card"><div class="rc-icon">🧠</div><div class="rc-text"><b>Tekrar zamanı: ${due} kelime</b><span>Bu kelimeler unutulmak üzere. 2 dakikada tazele.</span></div><button class="btn gold sm" data-review>TEKRAR ET</button></div>`;
+  if (!due) return `<div class="review-card done"><div class="rc-icon">🧠</div><div class="rc-text"><b>Tekrarların tamam</b><span>Kelimelerin hafızanda taze. Yeni bir derse geçebilirsin.</span></div></div>`;
+  return `<div class="review-card"><div class="rc-icon">🧠</div><div class="rc-text"><b>Tekrar zamanı: ${due} kelime</b><span>Bu kelimeler unutulmak üzere. 2 dakikada tazele.</span></div><button class="btn gold sm" data-review>Tekrar et</button></div>`;
+}
+
+function heroCard() {
+  const h = new Date().getHours();
+  const greet = h < 12 ? 'Günaydın' : h < 18 ? 'İyi günler' : 'İyi akşamlar';
+  const done = S.progress >= TOTAL_LESSONS;
+  const g = Math.min(S.progress, TOTAL_LESSONS - 1), ui = unitOf(g), li = g % LPU;
+  return `<section class="hero">
+    <div class="hero-text">
+      <div class="kicker">${greet}, ${esc(S.name)} 👋</div>
+      <h1>${done ? 'Tüm hattı tamamladın!' : `Sıradaki durak: ${esc(UNITS[ui].title)}`}</h1>
+      <p>${done ? 'Pratik bölümünden tekrar yaparak bildiklerini taze tut.' : `${UNITS[ui].level} · ${esc(lessonNames(ui)[li])} · +${lessonXp(ui, li)} XP`}</p>
+      ${done ? '' : `<button class="btn primary" data-continue>${ICON.play} Derse devam et</button>`}
+    </div>
+    <div class="hero-art">${mascot('happy', 'bounce')}<span class="ha-e e1">📚</span><span class="ha-e e2">💬</span><span class="ha-e e3">⭐</span></div>
+  </section>`;
 }
 
 function renderLearn() {
   const page = $('#page');
-  let html = reviewCard();
+  let html = heroCard() + reviewCard();
   UNITS.forEach((u, ui) => {
     const unitLocked = ui * LPU > S.progress;
-    const mirror = ui % 2 ? -1 : 1;
     const si = sectionOfUnit(ui);
     if (sectionStartUnit(si) === ui) {
       const sec = SECTIONS[si];
       const secUnits = UNITS.filter(x => x.level === sec.level).length;
-      const secLocked = unitLocked;
-      html += `<div class="section-head ${secLocked ? 'locked' : ''}">
+      if (si > 0) html += '</div>';
+      html += `<div class="line-head ${unitLocked ? 'locked' : ''}" data-line="${si}">
         <div class="level-badge">${sec.level}</div>
-        <div style="flex:1;min-width:0"><div class="unit-kicker">BÖLÜM ${si + 1} · ${secUnits} ÜNİTE</div><h2>${esc(sec.title)}</h2><p>${esc(sec.desc)}</p></div>
-        ${secLocked ? `<button class="btn gold sm" data-test="${si}">ATLA ⏩</button>` : ''}
-      </div>`;
+        <div class="lh-text"><div class="kicker">${sec.level} hattı · ${secUnits} durak</div><h2>${esc(sec.title)}</h2><p>${esc(sec.desc)}</p></div>
+        ${unitLocked ? `<button class="btn ghost sm" data-test="${si}">Seviyeyi atla</button>` : ''}
+      </div><div class="track" data-line="${si}">`;
     }
-    html += `<section class="unit" style="--unit:${u.color}">
-      <div class="unit-head ${unitLocked ? 'locked' : ''}">
-        <div><div class="unit-kicker">ÜNİTE ${ui + 1}</div><h2>${u.icon} ${esc(u.title)}</h2><p>${esc(u.desc)}</p></div>
-        <button class="guide-btn" data-guide="${ui}">📘 REHBER</button>
+    const doneCount = clamp(S.progress - ui * LPU, 0, LPU);
+    const state = unitLocked ? 'locked' : doneCount >= LPU ? 'done' : 'active';
+    html += `<article class="stop ${state}" style="--u:${u.color}">
+      <div class="stop-dot">${state === 'done' ? ICON.check : state === 'locked' ? ICON.lock : `<span>${ui + 1}</span>`}</div>
+      <div class="ucard">
+        ${unitArt(u, unitLocked)}
+        <div class="ucard-body">
+          <div class="ucard-head">
+            <div style="min-width:0"><div class="kicker">Durak ${ui + 1} · ${u.level}</div><h3>${esc(u.title)}</h3><p>${esc(u.desc)}</p></div>
+            <button class="icon-btn guide" data-guide="${ui}" title="Ünite rehberi">${ICON.guide}<span>Rehber</span></button>
+          </div>
+          <div class="uprog"><div class="bar"><div style="width:${doneCount / LPU * 100}%"></div></div><span>${doneCount}/${LPU}</span></div>
+          <div class="lessons">${lessonNames(ui).map((name, li) => {
+            const g = ui * LPU + li;
+            const st = g < S.progress ? 'done' : g === S.progress ? 'current' : 'locked';
+            const ic = st === 'done' ? ICON.check : st === 'locked' ? ICON.lock : ICON.play;
+            return `<button class="ltile ${st} ${li === LPU - 1 ? 'review' : ''}" data-lesson="${g}">
+              <span class="lt-num">${li === LPU - 1 ? '🏆' : li + 1}</span>
+              <span class="lt-name">${esc(name)}</span>
+              <span class="lt-meta">${st === 'done' ? 'Tekrar · +5 XP' : `+${lessonXp(ui, li)} XP`}</span>
+              <span class="lt-ic">${ic}</span>
+            </button>`;
+          }).join('')}</div>
+        </div>
       </div>
-      <div class="path">
-        <div class="path-mascot ${unitLocked ? 'locked' : ''}" style="${mirror > 0 ? 'left:4%' : 'right:4%'}">${mascot(unitLocked ? 'calm' : 'happy', unitLocked ? '' : 'bounce')}</div>`;
-    for (let li = 0; li < LPU; li++) {
-      const g = ui * LPU + li;
-      const st = g < S.progress ? 'done' : g === S.progress ? 'current' : 'locked';
-      const review = li === LPU - 1;
-      const icon = st === 'locked' ? ICON.lock : st === 'done' ? (review ? ICON.trophy : ICON.check) : (review ? ICON.trophy : ICON.star);
-      html += `<div class="node-wrap ${st}" style="transform:translateX(${PATH_OFFSETS[li] * mirror}px)">
-        ${st === 'current' ? '<div class="start-tag">BAŞLA</div>' : ''}
-        <button class="node ${st} ${review ? 'review' : ''}" data-node="${g}" aria-label="${esc(lessonNames(ui)[li])}">${icon}</button>
-      </div>`;
-    }
-    html += `</div></section>`;
+    </article>`;
   });
+  html += '</div>';
   if (S.progress >= TOTAL_LESSONS) {
-    html += `<div class="panel finish-card">${mascot('wow', 'bounce')}<h2 style="margin:12px 0 6px">Tüm üniteleri bitirdin! 🎉</h2><p class="muted">Pratik sekmesinden tekrar yaparak öğrendiklerini pekiştirebilirsin.</p></div>`;
+    html += `<div class="panel finish-card">${mascot('wow', 'bounce')}<h2>Tüm durakları geçtin! 🎉</h2><p class="muted">Pratik sekmesinden tekrar yaparak öğrendiklerini pekiştirebilirsin.</p></div>`;
   }
   page.innerHTML = html;
 
   $$('[data-guide]', page).forEach(b => b.addEventListener('click', () => showGuide(+b.dataset.guide)));
   $$('[data-review]', page).forEach(b => b.addEventListener('click', () => startPractice('review')));
   $$('[data-test]', page).forEach(b => b.addEventListener('click', () => showTestIntro(+b.dataset.test)));
-  $$('[data-node]', page).forEach(b => b.addEventListener('click', e => { e.stopPropagation(); toggleNodePop(b); }));
+  $$('[data-continue]', page).forEach(b => b.addEventListener('click', () => { const g = S.progress; startLesson(unitOf(g), g % LPU); }));
+  $$('[data-lesson]', page).forEach(b => b.addEventListener('click', () => {
+    const g = +b.dataset.lesson;
+    if (g > S.progress) { toast('🔒 Bu dersi açmak için önceki dersleri bitir.'); return; }
+    startLesson(unitOf(g), g % LPU);
+  }));
 
-  const cur = $('.node-wrap.current', page);
-  if (cur) setTimeout(() => cur.scrollIntoView({ block: 'center', behavior: 'smooth' }), 60);
+  const cur = $('.ltile.current', page);
+  if (cur && S.progress > 0) setTimeout(() => cur.closest('.stop').scrollIntoView({ block: 'center', behavior: 'smooth' }), 60);
 }
-
-function toggleNodePop(btn) {
-  const wrap = btn.parentElement;
-  const had = $('.pop', wrap);
-  $$('.pop').forEach(p => p.remove());
-  if (had) return;
-  const g = +btn.dataset.node, ui = unitOf(g), li = g % LPU;
-  const st = g < S.progress ? 'done' : g === S.progress ? 'current' : 'locked';
-  const pop = document.createElement('div');
-  pop.className = 'pop' + (st === 'locked' ? ' locked' : '');
-  const xp = lessonXp(ui, li);
-  const name = lessonNames(ui)[li];
-  pop.innerHTML = st === 'locked'
-    ? `<h4>${esc(name)}</h4><p>Bu dersi açmak için önceki dersleri tamamla.</p><button class="btn" disabled>KİLİTLİ</button>`
-    : `<h4>${esc(name)}</h4><p>${UNITS[ui].level} · Ders ${li + 1} / ${LPU} · ${esc(UNITS[ui].title)}${S.completed[g] ? ` · ${S.completed[g]} kez tamamlandı` : ''}</p>
-       <button class="btn" data-start>${st === 'done' ? `TEKRAR ET +5 XP` : `BAŞLA +${xp} XP`}</button>`;
-  wrap.appendChild(pop);
-  pop.addEventListener('click', e => e.stopPropagation());
-  const sb = $('[data-start]', pop);
-  if (sb) sb.addEventListener('click', () => startLesson(ui, li));
-}
-document.addEventListener('click', () => $$('.pop').forEach(p => p.remove()));
 
 function showGuide(ui) {
   const u = UNITS[ui];
   const m = openModal(`
-    <div class="ex-kind">ÜNİTE ${ui + 1} REHBERİ</div>
+    <div class="ex-kind">Ünite ${ui + 1} rehberi</div>
     <h2>${u.icon} ${esc(u.title)}</h2>
     <div class="guide-tip">${u.tip}</div>
     <h3 class="section-title">Anahtar cümleler</h3>
@@ -802,7 +843,7 @@ function showGuide(ui) {
     </div></div>`).join('')}` : ''}
     <h3 class="section-title" style="margin-top:18px">Kelimeler</h3>
     ${u.words.map(w => `<div class="phrase"><button class="speaker mini" data-say="${esc(w.en)}" aria-label="Dinle">${ICON.speaker}</button><div><div class="pen">${w.emoji || ''} ${esc(w.en)}</div><div class="ptr">${esc(altsOf(w.tr).join(', '))}</div></div></div>`).join('')}
-    <div class="modal-actions" style="margin-top:20px"><button class="btn block" data-close>TAMAM</button></div>`);
+    <div class="modal-actions" style="margin-top:20px"><button class="btn block" data-close>Tamam</button></div>`);
   $$('[data-say]', m).forEach(b => b.addEventListener('click', () => speak(b.dataset.say)));
   $('[data-close]', m).addEventListener('click', closeModal);
 }
@@ -813,7 +854,7 @@ function showTestIntro(si) {
     <h2>${sec.level} seviyesine atla</h2>
     <p class="mtext">Önceki seviyeleri zaten biliyor musun? Bu sınavı geçersen <b>${esc(sec.title)}</b> bölümü ve öncesindeki tüm dersler açılır.<br><br>
     📝 ${genTest(si).length} soru · ❌ 3 hata hakkı</p>
-    <div class="modal-actions"><button class="btn gold" data-go>SINAVA BAŞLA</button><button class="btn ghost" data-close>VAZGEÇ</button></div>`, 'center');
+    <div class="modal-actions"><button class="btn gold" data-go>Sınava başla</button><button class="btn ghost" data-close>Vazgeç</button></div>`, 'center');
   $('[data-close]', m).addEventListener('click', closeModal);
   $('[data-go]', m).addEventListener('click', () => startSession({ mode: 'test', si, exercises: genTest(si), lives: 3 }));
 }
@@ -844,16 +885,16 @@ function renderPractice() {
 function showNotebook() {
   const list = mistakeList();
   const m = openModal(`
-    <div class="ex-kind">📕 HATA DEFTERİ</div>
+    <div class="ex-kind">📕 Hata defteri</div>
     <h2>${list.length} cümle</h2>
     <p class="mtext">Bir cümleyi pratikte <b>iki kez</b> doğru yapınca defterden silinir.</p>
-    <div class="modal-actions" style="margin-bottom:16px"><button class="btn ok" data-go>HATALARIMI ÇALIŞ</button></div>
+    <div class="modal-actions" style="margin-bottom:16px"><button class="btn ok" data-go>Hatalarımı çalış</button></div>
     ${list.map(x => `<div class="phrase nb"><button class="speaker mini" data-say="${esc(x.en)}" aria-label="Dinle">${ICON.speaker}</button><div style="flex:1;min-width:0">
       ${x.q ? `<div class="ptr">— ${esc(x.q)}</div>` : ''}
       <div class="pen">${esc(x.en)}</div><div class="ptr">${esc(x.tr)}</div>
       ${x.why ? `<div class="nb-why">💡 ${esc(x.why)}</div>` : ''}
     </div>${x.n > 1 ? `<span class="nb-count" title="Yanlış sayısı">×${x.n}</span>` : ''}</div>`).join('')}
-    <div class="modal-actions" style="margin-top:16px"><button class="btn ghost" data-close>KAPAT</button></div>`);
+    <div class="modal-actions" style="margin-top:16px"><button class="btn ghost" data-close>Kapat</button></div>`);
   $$('[data-say]', m).forEach(b => b.addEventListener('click', () => speak(b.dataset.say)));
   $('[data-close]', m).addEventListener('click', closeModal);
   $('[data-go]', m).addEventListener('click', () => startPractice('mistakes'));
@@ -925,8 +966,8 @@ function renderProfile() {
         <select class="select" id="s-goal">${[[10, 'Rahat'], [20, 'Normal'], [30, 'Ciddi'], [50, 'Yoğun']].map(([v, l]) => `<option value="${v}" ${S.goal === v ? 'selected' : ''}>${l} · ${v} XP</option>`).join('')}</select></div>
       <div class="setting"><div><div>Tema</div><div class="sd">Açık / koyu görünüm</div></div>
         <select class="select" id="s-theme">${[['auto', 'Sistem'], ['light', 'Açık'], ['dark', 'Koyu']].map(([v, l]) => `<option value="${v}" ${S.theme === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
-      <div class="setting"><div><div>Seviye tespit sınavı</div><div class="sd">${S.placement ? `Son sonuç: ${S.placement.level} (${S.placement.date})` : 'Henüz yapılmadı'}</div></div><button class="btn gold sm" id="s-place">${S.placement ? 'TEKRAR YAP' : 'BAŞLA'}</button></div>
-      <div class="setting"><div><div>İlerlemeyi sıfırla</div><div class="sd">Tüm verilerin silinir</div></div><button class="btn bad sm" id="s-reset">SIFIRLA</button></div>
+      <div class="setting"><div><div>Seviye tespit sınavı</div><div class="sd">${S.placement ? `Son sonuç: ${S.placement.level} (${S.placement.date})` : 'Henüz yapılmadı'}</div></div><button class="btn gold sm" id="s-place">${S.placement ? 'Tekrar yap' : 'Başla'}</button></div>
+      <div class="setting"><div><div>İlerlemeyi sıfırla</div><div class="sd">Tüm verilerin silinir</div></div><button class="btn bad sm" id="s-reset">Sıfırla</button></div>
     </div>`;
   $('#pname').addEventListener('change', e => { S.name = e.target.value.trim() || 'Öğrenci'; save(); renderApp(); });
   $('#s-sound').addEventListener('change', e => { S.sound = e.target.checked; save(); });
@@ -935,7 +976,7 @@ function renderProfile() {
   $('#s-place').addEventListener('click', startPlacement);
   $('#s-reset').addEventListener('click', () => {
     const m = openModal(`${mascot('sad')}<h2>Emin misin?</h2><p class="mtext">Tüm XP, seri ve ders ilerlemen kalıcı olarak silinecek.</p>
-      <div class="modal-actions"><button class="btn bad" data-yes>EVET, SIFIRLA</button><button class="btn ghost" data-close>VAZGEÇ</button></div>`, 'center');
+      <div class="modal-actions"><button class="btn bad" data-yes>Evet, sıfırla</button><button class="btn ghost" data-close>Vazgeç</button></div>`, 'center');
     $('[data-close]', m).addEventListener('click', closeModal);
     $('[data-yes]', m).addEventListener('click', () => { const theme = S.theme; S = defaultState(); S.theme = theme; save(); closeModal(); renderApp(); toast('İlerleme sıfırlandı.'); });
   });
@@ -965,11 +1006,13 @@ function startSession(cfg) {
   });
   $('#app').innerHTML = `
     <div class="lesson">
-      <header class="lesson-top" style="position:relative">
-        <button class="icon-btn" id="quit" aria-label="Dersten çık">✕</button>
-        <div class="progress"><div class="progress-fill" id="pfill"></div></div>
-        <div class="lesson-hearts" id="lhearts">${L.mode === 'test' ? ICON.cross : ICON.heart}<span>${L.mode === 'test' ? L.lives : '∞'}</span></div>
-        ${L.mode === 'placement' ? '<div class="pl-tag" id="pltag"></div>' : ''}
+      <header class="lesson-top">
+        <button class="icon-btn close" id="quit" aria-label="Dersten çık">${ICON.cross}</button>
+        <div class="lt-mid">
+          <div class="lt-row"><span class="pl-tag" id="pltag">${L.mode === 'placement' ? '' : L.mode === 'test' ? 'Seviye atlama sınavı' : L.mode === 'practice' ? 'Pratik' : `${esc(UNITS[L.ui].title)} · ${esc(lessonNames(L.ui)[L.li])}`}</span><span class="pcount" id="pcount"></span></div>
+          <div class="progress"><div class="progress-fill" id="pfill"></div></div>
+        </div>
+        <div class="lesson-hearts" id="lhearts" ${L.mode === 'test' ? '' : 'hidden'}>${ICON.cross}<span>${L.lives || 0}</span></div>
         <div id="combo"></div>
       </header>
       <div class="lesson-body"><div class="ex" id="ex"></div></div>
@@ -977,14 +1020,13 @@ function startSession(cfg) {
         <div class="foot-inner">
           <div class="foot-msg" id="fmsg"></div>
           <div class="foot-actions">
-            <button class="btn ghost" id="skip">ATLA</button>
-            <button class="btn ok" id="check" disabled>KONTROL ET</button>
+            <button class="btn ghost" id="skip">Geç</button>
+            <button class="btn ok" id="check" disabled>Kontrol et</button>
           </div>
         </div>
       </footer>
     </div>`;
   window.scrollTo(0, 0);
-  if (L.mode === 'placement') $('#lhearts').style.display = 'none';
   $('#quit').addEventListener('click', confirmQuit);
   $('#check').addEventListener('click', onMainButton);
   $('#skip').addEventListener('click', onSkip);
@@ -993,7 +1035,7 @@ function startSession(cfg) {
 
 function confirmQuit() {
   const m = openModal(`${mascot('sad')}<h2>Bekle, gitme!</h2><p class="mtext">Şimdi çıkarsan bu dersteki ilerlemen kaybolacak.</p>
-    <div class="modal-actions"><button class="btn" data-stay>ÖĞRENMEYE DEVAM ET</button><button class="btn ghost" data-leave>DERSTEN ÇIK</button></div>`, 'center');
+    <div class="modal-actions"><button class="btn primary" data-stay>Öğrenmeye devam et</button><button class="btn ghost" data-leave>Dersten çık</button></div>`, 'center');
   $('[data-stay]', m).addEventListener('click', closeModal);
   $('[data-leave]', m).addEventListener('click', () => { closeModal(); try { speechSynthesis.cancel(); } catch (e) { /* yoksay */ } renderApp(); });
 }
@@ -1013,10 +1055,10 @@ function next() {
   foot.className = 'lesson-foot';
   $('#fmsg').innerHTML = '';
   const check = $('#check');
-  check.textContent = 'KONTROL ET'; check.className = 'btn ok'; check.disabled = true;
+  check.textContent = 'Kontrol et'; check.className = 'btn ok'; check.disabled = true;
   const skip = $('#skip');
   skip.style.display = L.cur.type === 'match' ? 'none' : '';
-  skip.textContent = L.mode === 'placement' ? 'BİLMİYORUM' : LISTEN_TYPES.includes(L.cur.type) && L.mode !== 'test' ? 'ŞU AN DİNLEYEMİYORUM' : 'ATLA';
+  skip.textContent = L.mode === 'placement' ? 'Bilmiyorum' : LISTEN_TYPES.includes(L.cur.type) && L.mode !== 'test' ? 'Şu an dinleyemiyorum' : 'Geç';
   check.style.display = L.cur.type === 'match' ? 'none' : '';
   const root = $('#ex');
   root.className = 'ex';
@@ -1030,10 +1072,12 @@ function updateProgress() {
   if (L.mode === 'placement') {
     const p = L.pl, size = p.stage === 'ext' ? 9 : 6;
     $('#pfill').style.width = `${Math.min(100, ((p.li + p.asked / size) / SECTIONS.length) * 100)}%`;
-    $('#pltag').textContent = `SEVİYE TESPİTİ · ${SECTIONS[p.li].level} SORULARI`;
+    $('#pltag').textContent = `Seviye tespiti · ${SECTIONS[p.li].level} soruları`;
+    $('#pcount').textContent = '';
     return;
   }
   $('#pfill').style.width = `${(L.done / L.total) * 100}%`;
+  $('#pcount').textContent = `${Math.min(L.done, L.total)} / ${L.total}`;
 }
 
 function doCheck() {
@@ -1094,7 +1138,7 @@ function handleResult(r) {
   $('#skip').style.display = 'none';
   check.style.display = '';
   check.disabled = false;
-  check.textContent = 'DEVAM';
+  check.textContent = 'Devam';
   const replay = e.audio ? `<button class="speaker mini" id="fb-say" aria-label="Tekrar dinle" style="margin-left:6px;vertical-align:middle">${ICON.speaker}</button>` : '';
 
   if (r.correct) {
@@ -1110,7 +1154,7 @@ function handleResult(r) {
     sfx.ok();
     if (e.audio && e.type !== 'listen') speak(e.audio);
     if ([3, 5, 10, 15].includes(L.combo)) {
-      $('#combo').innerHTML = `<div class="combo-tag">🔥 ${L.combo} DOĞRU ÜST ÜSTE!</div>`;
+      $('#combo').innerHTML = `<div class="combo-tag">🔥 Üst üste ${L.combo} doğru!</div>`;
       setTimeout(() => { const c = $('#combo'); if (c) c.innerHTML = ''; }, 1800);
     }
   } else {
@@ -1119,7 +1163,7 @@ function handleResult(r) {
     foot.className = 'lesson-foot wrong';
     check.className = 'btn bad';
     const body = `<b>${esc(e.answerText)}</b>${e.meaning ? `<small>Anlamı: ${esc(e.meaning)}</small>` : ''}${r.note ? `<small>${r.note}</small>` : ''}`;
-    $('#fmsg').innerHTML = `<div class="fm-icon">${ICON.cross}</div><div><h3>${r.skipped ? 'Doğru cevap:' : 'Yanlış! Doğru cevap:'} ${replay}</h3><div class="fm-body">${body}</div></div>`;
+    $('#fmsg').innerHTML = `<div class="fm-icon">${ICON.cross}</div><div><h3>${r.skipped ? 'Doğru cevap' : 'Tam olmadı'} ${replay}</h3><div class="fm-body">${body}</div></div>`;
     sfx.bad();
     if (L.mode === 'test' && !e.noPenalty) {
       L.lives--;
@@ -1140,7 +1184,7 @@ function handleResult(r) {
 function testFailed() {
   const m = openModal(`${mascot('sad')}<h2>Bu sefer olmadı</h2>
     <p class="mtext">Hata hakkın bitti. Endişelenme: dersleri sırayla yaparak bu seviyeye adım adım ulaşabilir, sınavı istediğin zaman tekrar deneyebilirsin.</p>
-    <div class="modal-actions"><button class="btn" data-home>ANA SAYFAYA DÖN</button></div>`, 'center');
+    <div class="modal-actions"><button class="btn primary" data-home>Ana sayfaya dön</button></div>`, 'center');
   $('[data-home]', m).addEventListener('click', () => { closeModal(); renderApp(); });
 }
 
@@ -1204,7 +1248,7 @@ function finish() {
   save();
 
   sfx.win();
-  const mode = L.mode, ui = L.ui, newMistakes = L.newMistakes || 0;
+  const mode = L.mode, ui = L.ui, newMistakes = L.newMistakes || 0, maxCombo = L.maxCombo;
   L = null;
   const extras = [];
   if (streakUp) extras.push(`<div class="panel"><div class="big-emoji">🔥</div><div><b>${S.streak} günlük seri!</b><div class="muted">Yarın da gel, seriyi koru.</div></div></div>`);
@@ -1216,15 +1260,22 @@ function finish() {
 
   $('#app').innerHTML = `
     <div class="result">
-      ${mascot(perfect ? 'wow' : 'happy', 'bounce')}
-      <h1>${testPassed ? 'Sınavı geçtin!' : perfect ? 'Kusursuz ders!' : mode === 'practice' ? 'Pratik tamamlandı!' : 'Ders tamamlandı!'}</h1>
-      <div class="result-stats">
-        <div class="rstat" style="--c:var(--gold-dark)"><div class="rk">TOPLAM XP</div><div class="rv">⚡ ${xp}</div></div>
-        <div class="rstat" style="--c:var(--ok)"><div class="rk">${acc >= 90 ? 'MÜTHİŞ' : acc >= 70 ? 'İYİ' : 'DOĞRULUK'}</div><div class="rv">🎯 ${acc}%</div></div>
-        <div class="rstat" style="--c:var(--brand)"><div class="rk">SÜRE</div><div class="rv">⏱ ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}</div></div>
+      <div class="result-card">
+        <div class="rc-head">${mascot(perfect ? 'wow' : 'happy', 'bounce')}<div>
+          <div class="kicker">${mode === 'practice' ? 'Pratik' : mode === 'test' ? 'Seviye sınavı' : 'Ders'} tamamlandı</div>
+          <h1>${testPassed ? 'Sınavı geçtin!' : perfect ? 'Kusursuz!' : acc >= 80 ? 'Harika iş çıkardın!' : 'Tebrikler, bitirdin!'}</h1>
+        </div></div>
+        <div class="rc-main">
+          ${ring(acc, 140, 14, `<b>%${acc}</b><small>doğruluk</small>`)}
+          <div class="rc-stats">
+            <div><span>⭐</span><b>+${xp}</b><small>XP</small></div>
+            <div><span>⏱</span><b>${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}</b><small>süre</small></div>
+            <div><span>🔥</span><b>${maxCombo}</b><small>en uzun seri</small></div>
+          </div>
+        </div>
+        <div class="result-extra">${extras.join('')}</div>
       </div>
-      <div class="result-extra">${extras.join('')}</div>
-      <div class="result-foot"><button class="btn ok" id="rdone">DEVAM ET</button></div>
+      <div class="result-foot"><button class="btn primary" id="rdone">Devam et</button></div>
     </div>`;
   confetti();
   $('#rdone').addEventListener('click', () => { S.tab = 'learn'; save(); renderApp(); });
@@ -1233,7 +1284,7 @@ function finish() {
 function confetti() {
   const c = document.createElement('div');
   c.className = 'confetti';
-  const colors = ['#6C5CE7', '#FF9F1C', '#1fb36b', '#ff4b6e', '#0984E3', '#ffc233'];
+  const colors = ['#0E9F8B', '#FF7A59', '#F5B700', '#3FD3BE', '#13233F', '#FFB4A2'];
   for (let i = 0; i < 60; i++) {
     const p = document.createElement('i');
     p.style.left = Math.random() * 100 + 'vw';
@@ -1273,7 +1324,7 @@ function markOptions(btns, sel, correct) {
 }
 
 R.pick = (e, root) => {
-  root.innerHTML = `<div class="ex-kind">✨ YENİ KELİME</div>
+  root.innerHTML = `<div class="ex-kind">✨ Yeni kelime</div>
     <h2 class="ex-title">“${esc(e.prompt)}” hangisi?</h2>
     <div class="cards">${e.options.map((o, i) => `<button class="card-opt" data-key><span class="kbd">${i + 1}</span><span class="card-emoji">${o.emoji}</span><span>${esc(o.en)}</span></button>`).join('')}</div>`;
   let sel = -1;
@@ -1282,7 +1333,7 @@ R.pick = (e, root) => {
 };
 
 R.choice = (e, root) => {
-  root.innerHTML = `<div class="ex-kind">📝 ANLAMINI SEÇ</div>
+  root.innerHTML = `<div class="ex-kind">📝 Anlamını seç</div>
     <h2 class="ex-title">Bu kelimenin anlamı ne?</h2>
     <div class="word-hero"><button class="speaker" data-say aria-label="Dinle">${ICON.speaker}</button><span class="w">${esc(e.word.en)}</span><span class="e">${e.word.emoji || ''}</span></div>
     <div class="opts">${e.options.map((o, i) => `<button class="opt" data-key><span class="kbd">${i + 1}</span>${esc(o)}</button>`).join('')}</div>`;
@@ -1294,7 +1345,7 @@ R.choice = (e, root) => {
 };
 
 R.choiceRev = (e, root) => {
-  root.innerHTML = `<div class="ex-kind">🔁 İNGİLİZCESİNİ SEÇ</div>
+  root.innerHTML = `<div class="ex-kind">🔁 İngilizcesini seç</div>
     <h2 class="ex-title">“${esc(e.prompt)}” İngilizcede nasıl söylenir?</h2>
     <div class="opts">${e.options.map((o, i) => `<button class="opt" data-key><span class="kbd">${i + 1}</span>${esc(o)}</button>`).join('')}</div>`;
   let sel = -1;
@@ -1331,9 +1382,10 @@ R.build = (e, root) => {
     ? `<button class="speaker mini" data-say aria-label="Dinle">${ICON.speaker}</button><span>${e.prompt.split(/\s+/).map(w => `<span class="hint-word" data-w="${esc(w)}">${esc(w)}</span>`).join(' ')}</span>`
     : esc(e.prompt);
   const ctx = e.context ? `<div class="chat"><div class="chat-avatar">🧑</div><div class="bubble"><button class="speaker mini" data-ctx aria-label="Dinle">${ICON.speaker}</button>${esc(e.context)}</div></div>` : '';
-  tileExercise(e, root, `<div class="ex-kind">${e.context ? '🗣️ CEVAP VER' : '🧱 CÜMLE KUR'}</div>
+  tileExercise(e, root, `<div class="ex-kind">${e.context ? '🗣️ Cevap ver' : '🧱 Cümle kur'}</div>
     <h2 class="ex-title">${e.context ? 'Cevabını İngilizce kur' : e.dir === 'en' ? 'Bu cümleyi İngilizceye çevir' : 'Bu cümleyi Türkçeye çevir'}</h2>
     ${ctx}
+    ${e.dir === 'en' ? scene(e) : ''}
     <div class="bubble-row">${mascot('happy')}<div class="bubble">${promptHtml}</div></div>`);
   if (e.context) {
     $('[data-ctx]', root).addEventListener('click', () => speak(e.context));
@@ -1347,7 +1399,7 @@ R.build = (e, root) => {
 };
 
 R.listen = (e, root) => {
-  tileExercise(e, root, `<div class="ex-kind">🎧 DİNLE</div>
+  tileExercise(e, root, `<div class="ex-kind">🎧 Dinle</div>
     <h2 class="ex-title">Duyduğunu oluştur</h2>
     <div class="listen-row">
       <button class="speaker" data-say aria-label="Dinle">${ICON.speaker}</button>
@@ -1364,7 +1416,7 @@ R.fill = (e, root) => {
     const punct = (p.match(/[.,!?]+$/) || [''])[0];
     return `<span class="blank" id="blank">&nbsp;</span>${esc(punct)}`;
   }).join(' ');
-  root.innerHTML = `<div class="ex-kind">🧩 BOŞLUĞU DOLDUR</div>
+  root.innerHTML = `<div class="ex-kind">🧩 Boşluğu doldur</div>
     <h2 class="ex-title">Doğru kelimeyi seç</h2>
     <div class="fill-sentence">${sentence}</div>
     <div class="fill-hint">💡 ${esc(e.hint)}</div>
@@ -1375,7 +1427,7 @@ R.fill = (e, root) => {
 };
 
 R.reply = (e, root) => {
-  root.innerHTML = `<div class="ex-kind">🗣️ DİYALOG</div>
+  root.innerHTML = `<div class="ex-kind">🗣️ Diyalog</div>
     <h2 class="ex-title">En uygun cevabı seç</h2>
     <div class="chat">
       <div class="chat-avatar">🧑</div>
@@ -1391,8 +1443,9 @@ R.reply = (e, root) => {
 };
 
 R.sentChoice = (e, root) => {
-  root.innerHTML = `<div class="ex-kind">🔍 DOĞRU ÇEVİRİ</div>
+  root.innerHTML = `<div class="ex-kind">🔍 Doğru çeviri</div>
     <h2 class="ex-title">Doğru İngilizce çeviriyi seç</h2>
+    ${scene(e)}
     <div class="bubble-row">${mascot('happy')}<div class="bubble">${esc(e.prompt)}</div></div>
     <div class="opts">${e.options.map((o, i) => `<button class="opt" data-key><span class="kbd">${i + 1}</span>${esc(o)}</button>`).join('')}</div>`;
   let sel = -1;
@@ -1415,7 +1468,7 @@ function bindListen(e, root) {
 }
 
 R.listenPick = (e, root) => {
-  root.innerHTML = `${listenHeader('🎧 DİNLE VE BUL', 'Duyduğun cümleyi seç')}
+  root.innerHTML = `${listenHeader('🎧 Dinle ve bul', 'Duyduğun cümleyi seç')}
     <div class="opts">${e.options.map((o, i) => `<button class="opt" data-key><span class="kbd">${i + 1}</span>${esc(o)}</button>`).join('')}</div>`;
   bindListen(e, root);
   let sel = -1;
@@ -1424,7 +1477,7 @@ R.listenPick = (e, root) => {
 };
 
 R.listenWord = (e, root) => {
-  root.innerHTML = `${listenHeader('🎧 DİNLE', 'Duyduğun kelimenin anlamı ne?')}
+  root.innerHTML = `${listenHeader('🎧 Dinle', 'Duyduğun kelimenin anlamı ne?')}
     <div class="opts">${e.options.map((o, i) => `<button class="opt" data-key><span class="kbd">${i + 1}</span>${esc(o)}</button>`).join('')}</div>`;
   bindListen(e, root);
   let sel = -1;
@@ -1435,7 +1488,7 @@ R.listenWord = (e, root) => {
 R.match = (e, root) => {
   const left = shuffle(e.pairs.map((p, i) => ({ i, t: p.en })));
   const right = shuffle(e.pairs.map((p, i) => ({ i, t: p.tr })));
-  root.innerHTML = `<div class="ex-kind">🔗 EŞLEŞTİR</div>
+  root.innerHTML = `<div class="ex-kind">🔗 Eşleştir</div>
     <h2 class="ex-title">Eşleri bul</h2>
     <div class="match-grid">
       <div class="match-col">${left.map(x => `<button class="match-btn" data-side="l" data-i="${x.i}">${esc(x.t)}</button>`).join('')}</div>
@@ -1483,7 +1536,7 @@ ex.mcq = item => {
 
 R.mcq = (e, root) => {
   const [before, after] = e.text.split('___');
-  root.innerHTML = `<div class="ex-kind">📐 DİLBİLGİSİ</div>
+  root.innerHTML = `<div class="ex-kind">📐 Dilbilgisi</div>
     <h2 class="ex-title">Boşluğa uygun olanı seç</h2>
     <div class="fill-sentence">${esc(before)}<span class="blank" id="blank">&nbsp;</span>${esc(after)}</div>
     <div class="pills" style="margin-top:26px">${e.options.map((o, i) => `<button class="pill" data-key><span class="kbd">${i + 1}</span>${esc(o)}</button>`).join('')}</div>`;
@@ -1565,21 +1618,21 @@ function finishPlacement() {
     const pct = Math.round(sc.correct / sc.total * 100);
     return `<div class="pl-row"><span class="pl-lvl">${sec.level}</span><div class="bar"><div style="width:${pct}%;background:${sc.passed ? 'var(--ok)' : 'var(--bad)'}"></div></div><span class="pl-res">${sc.correct}/${sc.total} ${sc.passed ? '✅' : '❌'}</span></div>`;
   }).join('');
-  const startLabel = startSec >= SECTIONS.length ? 'TÜM DERSLER AÇIK — DEVAM ET' : `${SECTIONS[startSec].level} SEVİYESİNDEN BAŞLA`;
+  const startLabel = startSec >= SECTIONS.length ? 'Tüm dersler açık, devam et' : `${SECTIONS[startSec].level} seviyesinden başla`;
 
   sfx.win();
   $('#app').innerHTML = `
     <div class="result">
       ${mascot('wow', 'bounce')}
-      <div class="ex-kind" style="justify-content:center">SEVİYE TESPİTİ TAMAMLANDI</div>
+      <div class="ex-kind" style="justify-content:center">Seviye tespiti tamamlandı</div>
       <div class="pl-badge">${result.code}</div>
       <h1>${esc(result.title)}</h1>
       <p class="muted" style="max-width:440px;color:var(--muted)">${esc(result.desc)}</p>
       <div class="panel pl-table">${rows}<div class="bar-label"><span>${p.scores.reduce((a, b) => a + b.total, 0)} soru</span><span>⏱ ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}</span></div></div>
       ${lower ? '<p class="muted" style="color:var(--muted)">Mevcut ilerlemen bu seviyenin üstünde, o yüzden korunacak.</p>' : ''}
       <div class="result-foot" style="flex-direction:column;align-items:center;gap:10px">
-        <button class="btn ok" id="pl-go">${startLabel}</button>
-        ${startSec > 0 && !lower ? '<button class="btn ghost" id="pl-zero" style="width:100%;max-width:420px">A1\'DEN BAŞTAN BAŞLA</button>' : ''}
+        <button class="btn primary" id="pl-go">${startLabel}</button>
+        ${startSec > 0 && !lower ? '<button class="btn ghost" id="pl-zero" style="width:100%;max-width:420px">A1\'den baştan başla</button>' : ''}
       </div>
     </div>`;
   confetti();
@@ -1606,7 +1659,7 @@ function renderWelcome() {
         <button class="practice-card" id="w-new"><div class="pi">🌱</div><div><h3>İngilizceye yeni başlıyorum</h3><p>En temelden, A1 seviyesinden başla.</p></div></button>
         <button class="practice-card" id="w-test"><div class="pi">🎯</div><div><h3>Biraz İngilizce biliyorum</h3><p>Kısa bir seviye tespit sınavına gir, sana uygun seviyeden başla.</p></div></button>
       </div>
-      <p class="welcome-note">Sınav yaklaşık 5–10 dakika sürer. Soruların zorluğu cevaplarına göre ayarlanır: başarılı oldukça daha zor sorular gelir. Bilmediğin soruda tahmin etme, <b>BİLMİYORUM</b>'a bas; sonuç daha doğru çıkar.</p>
+      <p class="welcome-note">Sınav yaklaşık 5–10 dakika sürer. Soruların zorluğu cevaplarına göre ayarlanır: başarılı oldukça daha zor sorular gelir. Bilmediğin soruda tahmin etme, <b>Bilmiyorum</b>'a bas; sonuç daha doğru çıkar.</p>
     </div>`;
   $('#w-new').addEventListener('click', () => { S.onboarded = true; save(); renderApp(); });
   $('#w-test').addEventListener('click', startPlacement);
