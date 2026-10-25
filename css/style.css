@@ -620,3 +620,29 @@ svg { flex: none; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* ---------------- Okuma bölümü ---------------- */
+.ucard-btns { display: flex; gap: 6px; flex: none; }
+.icon-btn.read { font-size: 15px; }
+.icon-btn.read.done { color: var(--ok); background: var(--ok-soft); }
+.story-tools { display: flex; gap: 8px; flex-wrap: wrap; margin: -8px 0 14px; }
+.story-tools .btn svg { width: 16px; height: 16px; }
+.story { background: var(--surface-2); border-radius: 18px; padding: 16px 18px; line-height: 1.6; }
+.st-line { margin: 0 0 8px; }
+.st-line:last-child { margin-bottom: 0; }
+.st-en { font-size: 17px; font-weight: 600; color: var(--ink); cursor: pointer; border-radius: 6px; transition: background .15s; }
+.st-en:hover { background: var(--brand-soft); }
+.st-tr { display: block; font-size: 14px; color: var(--muted); margin-top: 1px; }
+.story-hint { color: var(--muted); font-size: 13px; margin-top: 12px; }
+.story-mini { margin-bottom: 18px; border-radius: 16px; background: var(--surface-2); padding: 10px 14px; }
+.story-mini summary { cursor: pointer; font-weight: 700; font-size: 13.5px; color: var(--brand); }
+.story-mini .story { background: none; padding: 8px 0 0; }
+.story-mini .st-en { font-size: 15px; }
+.read-row { width: 100%; display: flex; align-items: center; gap: 12px; text-align: left; border: none; background: var(--surface-2); border-radius: 14px; padding: 10px 12px; margin-bottom: 8px; }
+.read-row:hover { background: var(--brand-soft); }
+.rr-ic { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: 22px; background: color-mix(in srgb, var(--u) 20%, var(--surface)); flex: none; }
+.rr-t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.rr-t b { color: var(--ink); }
+.rr-t small { color: var(--muted); font-size: 12px; }
+.rr-s { font-size: 12.5px; font-weight: 700; color: var(--brand); flex: none; }
+@media (max-width: 420px) { .icon-btn.read span { display: none; } }

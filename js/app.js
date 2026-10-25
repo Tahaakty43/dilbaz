@@ -32,15 +32,17 @@ const STORE_KEY = 'dilbaz-v1';
 const PRAISE = ['Harika!', 'Mükemmel!', 'Süper!', 'Aferin!', 'Çok iyi!', 'Tam isabet!'];
 const DAYS_TR = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
 const KEEP_CASE = new Set(['I', 'Ali', 'Turkey', 'Monday', 'Friday', 'Türkiyeliyim', "Türkiye'denim",
-  'Mr', 'Brown', 'Bay', 'London', "Londra'ya", "Londra'da", 'English', 'İngilizce', 'İngilizceyi', 'Spanish', 'İspanyolca', 'Antalya', "Antalya'ya", 'Sarah', 'Izmir', 'Turkish', 'Türk',
+  'Mr', 'Brown', 'Bay', 'London', "Londra'ya", "Londra'da", 'English', 'İngilizce', 'İngilizceyi', 'Spanish', 'İspanyolca', 'Antalya', "Antalya'ya", 'Sarah', 'Izmir', 'Turkish', 'Türk', 'Türkçe', 'Japan', 'Italy', 'Spain', 'France', 'England', 'China', 'Tokyo', 'Istanbul',
+  "Japonya'nın", "İspanya'yı", "İspanya'ya", 'Almanca', 'Japonca', 'Robots', 'AI', 'Paris', "Londra'da",
   'Elif', 'Ankara', 'TV', 'May', 'Sunday', 'Germany', "Almanya'ya", "İzmir'e", 'Wi-Fi', 'ATM', 'Italy', "İtalya'ya", "İtalya'da", 'Bayram', 'New', 'Year', 'Thursday']);
 const keepCase = t => KEEP_CASE.has(t) || /^I'/.test(t);
 UNITS.forEach(u => { u.level = u.level || 'A1'; u.dialogs = u.dialogs || []; });
-const LEVEL_NUM = { A1: 1, A2: 2, B1: 3 };
+const LEVEL_NUM = { A1: 1, A2: 2, B1: 3, B2: 4 };
 const sectionOfUnit = ui => SECTIONS.findIndex(s => s.level === UNITS[ui].level);
 const sectionStartUnit = si => UNITS.findIndex(u => u.level === SECTIONS[si].level);
 const lessonNames = ui => UNITS[ui].level === 'A1' ? LESSON_NAMES : ['Kelimeler ve kalıplar', 'Cümleler', 'Gerçek diyaloglar', 'Ünite tekrarı'];
-const lessonXp = (ui, li) => (UNITS[ui].level === 'A1' ? 10 : UNITS[ui].level === 'A2' ? 15 : 20) + (li === LPU - 1 ? 5 : 0);
+const LEVEL_XP = { A1: 10, A2: 15, B1: 20, B2: 25 };
+const lessonXp = (ui, li) => (LEVEL_XP[UNITS[ui].level] || 20) + (li === LPU - 1 ? 5 : 0);
 
 // ---------- İkonlar ----------
 const ICON = {
@@ -118,7 +120,7 @@ const defaultState = () => ({
   words: {}, daily: {}, goal: 30,
   sound: true, theme: 'auto',
   achievements: {}, tab: 'learn', onboarded: false, placement: null,
-  srs: {}, mistakes: {},
+  srs: {}, mistakes: {}, reads: {},
 });
 
 let S = load();
@@ -475,6 +477,13 @@ const ex = {
     while (opts.length < 3) opts.push(others.shift());
     return { type: 'listenPick', audio: s.en, ...withOptions(opts, right), answerText: s.en, meaning: s.tr, words: wordsIn(s.en, wordPool), src: { en: s.en, tr: s.tr } };
   },
+  // Okuma parçası sorusu: [soru, doğru, yanlış1, yanlış2, kanıt cümlesi]
+  readQ(st, q) {
+    const [text, right, w1, w2, ev] = q;
+    const why = `Metinde: “${st.en[ev]}” (${st.tr[ev]})`;
+    const items = [{ text: right }, { text: w1, why }, { text: w2, why }];
+    return { type: 'readQ', story: st, q: text, ev, ...withOptions(items, items[0]), answerText: right, meaning: null, words: [] };
+  },
   // Diyalog cümlesini kelime kartlarıyla kur
   replyBuild(d, sentPool, wordPool) {
     const [q, qtr, a, atr] = d;
@@ -522,7 +531,7 @@ function genLesson(ui, li) {
 // A2 / B1: daha çok yazma, dikte ve gerçek diyalog; daha az ipucu
 function genAdvanced(ui, li) {
   const u = UNITS[ui];
-  const b1 = u.level === 'B1';
+  const b1 = LEVEL_NUM[u.level] >= 3; // B1 ve B2: ipucu yok, daha çok yazılı/dinleme
   const { words, sents, dialogs } = lessonContent(ui, li);
   const wordPool = u.words;
   const sentPool = UNITS.slice(Math.max(0, ui - 1), ui + 1).flatMap(x => x.sentences.concat(x.dialogs.map(d => ({ en: d[2], tr: d[3] }))));
@@ -790,7 +799,10 @@ function renderLearn() {
         <div class="ucard-body">
           <div class="ucard-head">
             <div style="min-width:0"><div class="kicker">Durak ${ui + 1} · ${u.level}</div><h3>${esc(u.title)}</h3><p>${esc(u.desc)}</p></div>
-            <button class="icon-btn guide" data-guide="${ui}" title="Ünite rehberi">${ICON.guide}<span>Rehber</span></button>
+            <div class="ucard-btns">
+              ${u.story ? `<button class="icon-btn guide read ${S.reads[u.title] != null ? 'done' : ''}" data-read="${ui}" title="Okuma parçası">📖<span>Okuma${S.reads[u.title] != null ? ' ✓' : ''}</span></button>` : ''}
+              <button class="icon-btn guide" data-guide="${ui}" title="Ünite rehberi">${ICON.guide}<span>Rehber</span></button>
+            </div>
           </div>
           <div class="uprog"><div class="bar"><div style="width:${doneCount / LPU * 100}%"></div></div><span>${doneCount}/${LPU}</span></div>
           <div class="lessons">${lessonNames(ui).map((name, li) => {
@@ -815,6 +827,11 @@ function renderLearn() {
   page.innerHTML = html;
 
   $$('[data-guide]', page).forEach(b => b.addEventListener('click', () => showGuide(+b.dataset.guide)));
+  $$('[data-read]', page).forEach(b => b.addEventListener('click', () => {
+    const ui = +b.dataset.read;
+    if (ui * LPU > S.progress) { toast('🔒 Bu ünitenin okuma parçası, üniteye gelince açılır.'); return; }
+    startReading(ui);
+  }));
   $$('[data-review]', page).forEach(b => b.addEventListener('click', () => startPractice('review')));
   $$('[data-test]', page).forEach(b => b.addEventListener('click', () => showTestIntro(+b.dataset.test)));
   $$('[data-continue]', page).forEach(b => b.addEventListener('click', () => { const g = S.progress; startLesson(unitOf(g), g % LPU); }));
@@ -876,10 +893,12 @@ function renderPractice() {
       <button class="practice-card" data-prac="listen" ${ready ? '' : 'disabled'}><div class="pi">🎧</div><div><h3>Dinleme pratiği</h3><p>Duyduğun cümleleri bul ve kur, kulağını alıştır.</p></div><span class="reward">+5 XP</span></button>
       <button class="practice-card" data-prac="match" ${ready ? '' : 'disabled'}><div class="pi">🧩</div><div><h3>Hızlı eşleştirme</h3><p>Kelimeleri anlamlarıyla eşleştir.</p></div><span class="reward">+5 XP</span></button>
       <button class="practice-card" data-prac="write" ${S.progress >= 4 ? '' : 'disabled'}><div class="pi">🧱</div><div><h3>Cümle ustası</h3><p>Cümle kur ve doğru çeviriyi bul. ${S.progress >= 4 ? '' : '(1 ünite bitirince açılır)'}</p></div><span class="reward">+5 XP</span></button>
+      <button class="practice-card" data-reading><div class="pi">📖</div><div><h3>Okuma parçaları</h3><p>${readableUnits().length} hikâye açık · ${Object.keys(S.reads).length} tanesini okudun.</p></div><span class="reward">+10 XP</span></button>
       <button class="practice-card" data-prac="dialog" ${learnedContent().dialogs.length >= 4 ? '' : 'disabled'}><div class="pi">🗣️</div><div><h3>Konuşma simülasyonu</h3><p>Gerçek hayattan diyaloglarda doğru cevabı ver. ${learnedContent().dialogs.length >= 4 ? '' : '(A2 bölümünde açılır)'}</p></div><span class="reward">+5 XP</span></button>
     </div>`;
   $$('[data-prac]').forEach(b => b.addEventListener('click', () => startPractice(b.dataset.prac)));
   $$('[data-notebook]').forEach(b => b.addEventListener('click', showNotebook));
+  $$('[data-reading]').forEach(b => b.addEventListener('click', showReadingList));
 }
 
 function showNotebook() {
@@ -991,6 +1010,31 @@ function startLesson(ui, li) {
   const g = ui * LPU + li;
   startSession({ mode: 'lesson', ui, li, g, exercises: genLesson(ui, li), replay: g < S.progress });
 }
+// ---------- Okuma bölümü ----------
+const readableUnits = () => UNITS.map((u, i) => i).filter(i => UNITS[i].story && i * LPU <= S.progress);
+
+function genReading(ui) {
+  const st = UNITS[ui].story;
+  return [{ type: 'read', story: st, words: [] }, ...st.q.map(q => ex.readQ(st, q))];
+}
+function startReading(ui) {
+  startSession({ mode: 'reading', ui, exercises: genReading(ui) });
+}
+function showReadingList() {
+  const list = readableUnits();
+  const m = openModal(`
+    <div class="ex-kind">📖 Okuma parçaları</div>
+    <h2>${list.length} hikâye</h2>
+    <p class="mtext">Her ünitenin kelimeleriyle yazılmış kısa bir hikâye ve 3 anlama sorusu. Yeni üniteler açıldıkça yeni hikâyeler gelir.</p>
+    ${list.map(i => { const u = UNITS[i], best = S.reads[u.title];
+      return `<button class="read-row" data-ru="${i}"><span class="rr-ic" style="--u:${u.color}">${u.icon}</span>
+        <span class="rr-t"><b>${esc(u.story.title)}</b><small>${u.level} · Ünite ${i + 1}: ${esc(u.title)}</small></span>
+        <span class="rr-s">${best != null ? `✓ ${best}/3` : 'Yeni'}</span></button>`; }).join('')}
+    <div class="modal-actions" style="margin-top:16px"><button class="btn ghost" data-close>Kapat</button></div>`);
+  $('[data-close]', m).addEventListener('click', closeModal);
+  $$('[data-ru]', m).forEach(b => b.addEventListener('click', () => startReading(+b.dataset.ru)));
+}
+
 function startPractice(kind) {
   if (S.progress <= 0 && kind !== 'mistakes') { toast('Önce ilk dersini tamamla!'); return; }
   const exercises = genPractice(kind);
@@ -1009,7 +1053,7 @@ function startSession(cfg) {
       <header class="lesson-top">
         <button class="icon-btn close" id="quit" aria-label="Dersten çık">${ICON.cross}</button>
         <div class="lt-mid">
-          <div class="lt-row"><span class="pl-tag" id="pltag">${L.mode === 'placement' ? '' : L.mode === 'test' ? 'Seviye atlama sınavı' : L.mode === 'practice' ? 'Pratik' : `${esc(UNITS[L.ui].title)} · ${esc(lessonNames(L.ui)[L.li])}`}</span><span class="pcount" id="pcount"></span></div>
+          <div class="lt-row"><span class="pl-tag" id="pltag">${L.mode === 'placement' ? '' : L.mode === 'test' ? 'Seviye atlama sınavı' : L.mode === 'practice' ? 'Pratik' : L.mode === 'reading' ? `📖 Okuma · ${esc(UNITS[L.ui].story.title)}` : `${esc(UNITS[L.ui].title)} · ${esc(lessonNames(L.ui)[L.li])}`}</span><span class="pcount" id="pcount"></span></div>
           <div class="progress"><div class="progress-fill" id="pfill"></div></div>
         </div>
         <div class="lesson-hearts" id="lhearts" ${L.mode === 'test' ? '' : 'hidden'}>${ICON.cross}<span>${L.lives || 0}</span></div>
@@ -1123,6 +1167,7 @@ function handleResult(r) {
   L.phase = 'feedback';
   const e = L.cur;
   $('#ex').classList.add('locked');
+  if (r.silent) { L.done++; updateProgress(); next(); return; }
   if (L.mode === 'placement') placementRecord(e, r.correct);
   else markWords(e.words, r.correct);
   const foot = $('#foot');
@@ -1188,11 +1233,16 @@ function finish() {
   const acc = Math.round(firstTry / (firstTry + L.mistakes) * 100);
   const perfect = L.mistakes === 0;
   let xp;
-  if (L.mode === 'practice') xp = 5;
+  if (L.mode === 'reading') xp = 10;
+  else if (L.mode === 'practice') xp = 5;
   else if (L.mode === 'test') xp = 25;
   else if (L.replay) xp = 5;
   else xp = lessonXp(L.ui, L.li);
-  if (perfect && L.mode === 'lesson') xp += 5;
+  if (perfect && (L.mode === 'lesson' || L.mode === 'reading')) xp += 5;
+  if (L.mode === 'reading') {
+    const t = UNITS[L.ui].title, score = L.total - 1 - Math.min(L.mistakes, L.total - 1);
+    S.reads[t] = Math.max(S.reads[t] ?? 0, score);
+  }
 
   const today = dayKey();
   const goalBefore = todayXp() >= S.goal;
@@ -1232,6 +1282,7 @@ function finish() {
   award('xp500', S.xp >= 500);
   award('words50', wordsLearned() >= 50);
   award('practice', L.mode === 'practice');
+  award('reader', Object.keys(S.reads).length >= 5);
   award('test', L.mode === 'test');
   award('xp2000', S.xp >= 2000);
   SECTIONS.forEach((sec, si) => {
@@ -1255,7 +1306,7 @@ function finish() {
     <div class="result">
       <div class="result-card">
         <div class="rc-head">${mascot(perfect ? 'wow' : 'happy', 'bounce')}<div>
-          <div class="kicker">${mode === 'practice' ? 'Pratik' : mode === 'test' ? 'Seviye sınavı' : 'Ders'} tamamlandı</div>
+          <div class="kicker">${mode === 'practice' ? 'Pratik' : mode === 'test' ? 'Seviye sınavı' : mode === 'reading' ? 'Okuma' : 'Ders'} tamamlandı</div>
           <h1>${testPassed ? 'Sınavı geçtin!' : perfect ? 'Kusursuz!' : acc >= 80 ? 'Harika iş çıkardın!' : 'Tebrikler, bitirdin!'}</h1>
         </div></div>
         <div class="rc-main">
@@ -1479,6 +1530,46 @@ R.listenWord = (e, root) => {
   L.evaluate = () => { markOptions(btns, sel, e.correct); return optResult(e, sel); };
 };
 
+function storyHtml(st, withTr) {
+  return `<div class="story">${st.en.map((s, i) => `<p class="st-line"><span class="st-en" data-line="${i}">${esc(s)}</span>${withTr ? `<span class="st-tr">${esc(st.tr[i])}</span>` : ''}</p>`).join('')}</div>`;
+}
+function bindStory(root, st) {
+  $$('.st-en', root).forEach(el => el.addEventListener('click', () => speak(st.en[+el.dataset.line])));
+}
+
+R.read = (e, root) => {
+  const st = e.story;
+  root.innerHTML = `<div class="ex-kind">📖 Okuma</div>
+    <h2 class="ex-title">${esc(st.title)}</h2>
+    <div class="story-tools">
+      <button class="btn ghost sm" id="st-all">${ICON.speaker} Tümünü dinle</button>
+      <button class="btn ghost sm" id="st-tr">Türkçesini göster</button>
+    </div>
+    <div id="st-box">${storyHtml(st, false)}</div>
+    <p class="story-hint">💡 Bir cümleye dokunursan sesli okunur. Hazır olunca sorulara geç.</p>`;
+  let tr = false;
+  const draw = () => { $('#st-box', root).innerHTML = storyHtml(st, tr); bindStory(root, st); $('#st-tr', root).textContent = tr ? 'Türkçesini gizle' : 'Türkçesini göster'; };
+  draw();
+  $('#st-tr', root).addEventListener('click', () => { tr = !tr; draw(); });
+  $('#st-all', root).addEventListener('click', () => speak(st.en.join(' ')));
+  $('#skip').style.display = 'none';
+  const check = $('#check');
+  check.style.display = ''; check.textContent = 'Sorulara geç';
+  api.ready(true);
+  L.evaluate = () => ({ correct: true, silent: true });
+};
+
+R.readQ = (e, root) => {
+  root.innerHTML = `<div class="ex-kind">📖 Okuma sorusu</div>
+    <details class="story-mini" open><summary>${esc(e.story.title)} · metni ${'göster/gizle'}</summary>${storyHtml(e.story, false)}</details>
+    <h2 class="ex-title">${esc(e.q)}</h2>
+    <div class="opts">${e.options.map((o, i) => `<button class="opt" data-key><span class="kbd">${i + 1}</span>${esc(o)}</button>`).join('')}</div>`;
+  bindStory(root, e.story);
+  let sel = -1;
+  const btns = bindOptions(root, '.opt', i => { sel = i; api.ready(true); });
+  L.evaluate = () => { markOptions(btns, sel, e.correct); return optResult(e, sel); };
+};
+
 R.match = (e, root) => {
   const left = shuffle(e.pairs.map((p, i) => ({ i, t: p.en })));
   const right = shuffle(e.pairs.map((p, i) => ({ i, t: p.tr })));
@@ -1616,7 +1707,7 @@ function placementAdvance() {
 // Sınav sonucundan başlangıç noktasını hesaplar
 function placementResult(p) {
   const last = p.scores[p.scores.length - 1];
-  if (last.passed) return { allDone: true, target: TOTAL_LESSONS, code: 'B1+', title: 'Orta seviye ve üstü', li: SECTIONS.length - 1, band: PL_BANDS };
+  if (last.passed) return { allDone: true, target: TOTAL_LESSONS, code: `${SECTIONS[SECTIONS.length - 1].level}+`, title: 'İleri seviye', li: SECTIONS.length - 1, band: PL_BANDS };
   const li = last.li;
   let band = last.bandsOk.findIndex(ok => !ok);
   if (band < 0) band = PL_BANDS - 1; // içerik iyi ama dilbilgisi zayıf: son dilimden tekrar
@@ -1692,7 +1783,7 @@ function renderWelcome() {
         <button class="practice-card" id="w-new"><div class="pi">🌱</div><div><h3>İngilizceye yeni başlıyorum</h3><p>En temelden, A1 seviyesinden başla.</p></div></button>
         <button class="practice-card" id="w-test"><div class="pi">🎯</div><div><h3>Biraz İngilizce biliyorum</h3><p>Seviye tespit sınavına gir, sana tam uygun üniteden başla.</p></div></button>
       </div>
-      <p class="welcome-note">Sınav seviye başına 12 sorudan oluşur (toplam 12–36 soru, yaklaşık 5–15 dakika). Başarılı oldukça bir üst seviyeye geçersin. Sonunda seni tam seviyene uygun <b>üniteden</b> başlatırız. Bilmediğin soruda tahmin etme, <b>Bilmiyorum</b>'a bas; sonuç daha doğru çıkar.</p>
+      <p class="welcome-note">Sınav seviye başına 12 sorudan oluşur (toplam 12–48 soru, yaklaşık 5–15 dakika). Başarılı oldukça bir üst seviyeye geçersin. Sonunda seni tam seviyene uygun <b>üniteden</b> başlatırız. Bilmediğin soruda tahmin etme, <b>Bilmiyorum</b>'a bas; sonuç daha doğru çıkar.</p>
     </div>`;
   $('#w-new').addEventListener('click', () => { S.onboarded = true; save(); renderApp(); });
   $('#w-test').addEventListener('click', startPlacement);

@@ -343,4 +343,6 @@ const ACHIEVEMENTS = [
   { id: 'b1', icon: '👑', title: 'Akıcı Konuşmacı', desc: 'B1 bölümünü bitir' },
   { id: 'test', icon: '🚀', title: 'Hızlı Yükseliş', desc: 'Seviye atlama sınavını geç' },
   { id: 'xp2000', icon: '🏅', title: 'Efsane', desc: 'Toplam 2000 XP kazan' },
+  { id: 'b2', icon: '💎', title: 'Usta Kullanıcı', desc: 'B2 bölümünü bitir' },
+  { id: 'reader', icon: '📖', title: 'Kitap Kurdu', desc: '5 okuma parçası tamamla' },
 ];

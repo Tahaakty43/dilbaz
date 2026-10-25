@@ -50,6 +50,22 @@ const PLACEMENT_BANK = {
     ["I've been waiting ___ two o'clock.", 'since', 'for', 'from'],
     ["You don't have to come, ___ you want to.", 'unless', 'if', 'because'],
   ],
+  B2: [
+    ['If I ___ about the traffic, I would have left earlier.', 'had known', 'knew', 'would know'],
+    ['I wish I ___ that email yesterday.', "hadn't sent", "didn't send", "haven't sent"],
+    ['By the time you arrive, we ___ dinner.', 'will have finished', 'will finish', 'are finishing'],
+    ['She is used to ___ long hours.', 'working', 'work', 'worked'],
+    ['___ the bad weather, the match went ahead.', 'Despite', 'Although', 'However'],
+    ['You ___ have told me! I would have helped.', 'should', 'must', 'can'],
+    ['The report ___ by the end of the week.', 'will have been completed', 'will complete', 'has completed'],
+    ['He denied ___ the money.', 'taking', 'to take', 'take'],
+    ['Hardly ___ the house when it started to rain.', 'had we left', 'we had left', 'we left'],
+    ["It ___ be John; he is in Paris this week.", "can't", 'must', 'should'],
+    ['I would rather you ___ smoke in here.', "didn't", "don't", "won't"],
+    ['Not only ___ late, but he also forgot the tickets.', 'was he', 'he was', 'he is'],
+    ['The book, ___ was published in 1990, is still popular.', 'which', 'that', 'what'],
+    ['If only I ___ more time to study!', 'had', 'have', 'will have'],
+  ],
 };
 
 // Sonuç seviyelerinin açıklamaları
