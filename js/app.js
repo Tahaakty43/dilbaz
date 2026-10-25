@@ -372,26 +372,26 @@ const ex = {
       if (others.length === 2) break;
     }
     const options = shuffle([w, ...others]);
-    return { type: 'pick', prompt: firstTr(w.tr), options, correct: options.indexOf(w), answerText: w.en, words: [w.en],
+    return { type: 'pick', prompt: firstTr(w.tr), options, correct: options.indexOf(w), answerText: w.en, words: [w.en], explain: `“${w.en}” = ${altsOf(w.tr).join(', ')}`,
       reasons: options.map(o => o === w ? null : `“${o.en}” = ${firstTr(o.tr)}`) };
   },
   choice(w, pool) {
     const others = distinctWords(pool, 3, w);
     const options = shuffle([w, ...others]);
-    return { type: 'choice', word: w, options: options.map(o => firstTr(o.tr)), correct: options.indexOf(w), answerText: firstTr(w.tr), words: [w.en],
+    return { type: 'choice', word: w, options: options.map(o => firstTr(o.tr)), correct: options.indexOf(w), answerText: firstTr(w.tr), words: [w.en], explain: `“${w.en}” = ${altsOf(w.tr).join(', ')}`,
       reasons: options.map(o => o === w ? null : `“${firstTr(o.tr)}” İngilizcede “${o.en}” demektir.`) };
   },
   choiceRev(w, pool) {
     const others = distinctWords(pool, 3, w);
     const options = shuffle([w, ...others]);
-    return { type: 'choiceRev', prompt: firstTr(w.tr), options: options.map(o => o.en), correct: options.indexOf(w), answerText: w.en, words: [w.en],
+    return { type: 'choiceRev', prompt: firstTr(w.tr), options: options.map(o => o.en), correct: options.indexOf(w), answerText: w.en, words: [w.en], explain: `“${w.en}” = ${altsOf(w.tr).join(', ')}`,
       reasons: options.map(o => o === w ? null : `“${o.en}” = ${firstTr(o.tr)}`) };
   },
   // Duyduğun kelimenin anlamını seç
   listenWord(w, pool) {
     pool = pool || UNITS.find(u => u.words.includes(w)).words;
     const options = shuffle([w, ...distinctWords(pool, 3, w)]);
-    return { type: 'listenWord', audio: w.en, options: options.map(o => firstTr(o.tr)), correct: options.indexOf(w), answerText: `${w.en} = ${firstTr(w.tr)}`, words: [w.en],
+    return { type: 'listenWord', audio: w.en, options: options.map(o => firstTr(o.tr)), correct: options.indexOf(w), answerText: `${w.en} = ${firstTr(w.tr)}`, words: [w.en], explain: `“${w.en}” = ${altsOf(w.tr).join(', ')}`,
       reasons: options.map(o => o === w ? null : `Seçtiğin “${firstTr(o.tr)}” İngilizcede “${o.en}” demektir.`) };
   },
   match(words, pool) {
@@ -420,6 +420,9 @@ const ex = {
     return {
       type: kind, dir, prompt: dir === 'en' ? s.tr : s.en, audio: s.en, tiles, answers, lang,
       answerText: target, meaning: kind === 'listen' ? s.tr : null, words: wordsIn(s.en, wordPool), src: { en: s.en, tr: s.tr },
+      explain: dir === 'en'
+        ? `Bu cümle “${s.tr}” demektir. İngilizcede temel sıra özne + fiil + nesnedir.`
+        : `“${s.en}” cümlesinin Türkçesi. Türkçede yüklem genellikle cümlenin sonunda yer alır.`,
     };
   },
   fill(s, wordPool) {
@@ -440,6 +443,7 @@ const ex = {
     return {
       type: 'fill', parts: raw, blankIdx: idx, options, reasons, correct,
       hint: s.tr, audio: s.en, answerText: s.en, words: wordsIn(s.en, wordPool), src: { en: s.en, tr: s.tr },
+      explain: `Boşluğa “${shownBlank}”${fw ? ` (${firstTr(fw.tr)})` : ''} gelir. Cümlenin anlamı: “${s.tr}”`,
     };
   },
   // Diyalog: karşı tarafın sözüne uygun cevabı seç
@@ -453,6 +457,7 @@ const ex = {
     const options = shuffle(opts);
     return { type: 'reply', q, qtr: showHint ? qtr : null, options, correct: options.indexOf(a), answerText: a, meaning: atr, audio: a, words: [],
       reasons: options.map(o => o === a ? null : `“${o}” = ${dialogTr(o)}. Bu, “${q}” sorusuna uygun bir cevap değil.`),
+      explain: `“${q}” (${qtr}) sorusuna uygun cevap: “${a}” (${atr}).`,
       src: { en: a, tr: atr, q, qtr } };
   },
   // Türkçe cümlenin doğru çevirisini seç (yanlışlardan biri "tuzak" cümle)
@@ -465,7 +470,8 @@ const ex = {
     const opts = [right, ...traps.slice(0, 1)];
     const rest = shuffle([...traps.slice(1, 3), ...others.slice(0, 2)]);
     while (opts.length < 3 && rest.length) opts.push(rest.shift());
-    return { type: 'sentChoice', prompt: s.tr, ...withOptions(opts, right), answerText: s.en, audio: s.en, words: wordsIn(s.en, wordPool), src: { en: s.en, tr: s.tr } };
+    return { type: 'sentChoice', prompt: s.tr, ...withOptions(opts, right), answerText: s.en, audio: s.en, words: wordsIn(s.en, wordPool), src: { en: s.en, tr: s.tr },
+      explain: `“${s.tr}” cümlesinin doğru İngilizcesi budur. Diğer seçeneklerde dilbilgisi, kelime ya da sıra hatası var.` };
   },
   // Duyduğun cümleyi birbirine çok benzeyen seçenekler arasından bul
   listenPick(s, wordPool) {
@@ -475,14 +481,15 @@ const ex = {
     const right = { text: s.en };
     const opts = [right, ...traps.slice(0, 2).map(t => ({ text: t.text, why: `Duyduğun cümle bu değildi. ${t.why}` }))];
     while (opts.length < 3) opts.push(others.shift());
-    return { type: 'listenPick', audio: s.en, ...withOptions(opts, right), answerText: s.en, meaning: s.tr, words: wordsIn(s.en, wordPool), src: { en: s.en, tr: s.tr } };
+    return { type: 'listenPick', audio: s.en, ...withOptions(opts, right), answerText: s.en, meaning: s.tr, words: wordsIn(s.en, wordPool), src: { en: s.en, tr: s.tr },
+      explain: 'Sesi yavaş dinlemek için kaplumbağa butonunu kullanabilirsin. Seçenekler arasındaki küçük farklara dikkat et.' };
   },
   // Okuma parçası sorusu: [soru, doğru, yanlış1, yanlış2, kanıt cümlesi]
   readQ(st, q) {
     const [text, right, w1, w2, ev] = q;
     const why = `Metinde: “${st.en[ev]}” (${st.tr[ev]})`;
     const items = [{ text: right }, { text: w1, why }, { text: w2, why }];
-    return { type: 'readQ', story: st, q: text, ev, ...withOptions(items, items[0]), answerText: right, meaning: null, words: [] };
+    return { type: 'readQ', story: st, q: text, ev, ...withOptions(items, items[0]), answerText: right, meaning: null, words: [], explain: why };
   },
   // Diyalog cümlesini kelime kartlarıyla kur
   replyBuild(d, sentPool, wordPool) {
@@ -1200,7 +1207,8 @@ function handleResult(r) {
     if (e.src && !r.skipped && L.mode !== 'placement') { recordMistake(e.src, r.note); L.newMistakes = (L.newMistakes || 0) + 1; }
     foot.className = 'lesson-foot wrong';
     check.className = 'btn bad';
-    const body = `<b>${esc(e.answerText)}</b>${e.meaning ? `<small>Anlamı: ${esc(e.meaning)}</small>` : ''}${r.note ? `<small>${r.note}</small>` : ''}`;
+    const note = r.note || (e.explain ? `💡 ${esc(e.explain)}` : '');
+    const body = `<b>${esc(e.answerText)}</b>${e.meaning ? `<small>Anlamı: ${esc(e.meaning)}</small>` : ''}${note ? `<small>${note}</small>` : ''}`;
     $('#fmsg').innerHTML = `<div class="fm-icon">${ICON.cross}</div><div><h3>${r.skipped ? 'Doğru cevap' : 'Tam olmadı'} ${replay}</h3><div class="fm-body">${body}</div></div>`;
     sfx.bad();
     if (L.mode === 'test' && !e.noPenalty) {
@@ -1397,6 +1405,31 @@ R.choiceRev = (e, root) => {
   L.evaluate = () => { markOptions(btns, sel, e.correct); return optResult(e, sel); };
 };
 
+// Kelime kartlarıyla kurulan cümledeki hatayı bulur: eksik/fazla kelime ya da yanlış sıra
+function tileWhy(said, answers, lang) {
+  const bag = str => { const m = {}; norm(str, lang).split(' ').filter(Boolean).forEach(w => { m[w] = (m[w] || 0) + 1; }); return m; };
+  const diff = (a, b) => Object.entries(a).flatMap(([w, n]) => Array(Math.max(0, n - (b[w] || 0))).fill(w));
+  const mine = bag(said);
+  let best = null;
+  answers.forEach(a => {
+    const ref = bag(a), missing = diff(ref, mine), extra = diff(mine, ref);
+    const score = missing.length + extra.length;
+    if (!best || score < best.score) best = { score, missing, extra };
+  });
+  if (!best) return '';
+  if (!said.trim()) return 'Cümleyi kurmak için kartlara dokun.';
+  const quote = list => list.map(w => `“${w}”`).join(', ');
+  if (best.score === 0) {
+    return lang === 'en'
+      ? 'Kelimeler doğru ama sıraları yanlış. İngilizcede temel sıra özne + fiil + nesnedir; soru cümlelerinde yardımcı fiil (do, is, can…) başa gelir.'
+      : 'Kelimeler doğru ama sıraları yanlış. Türkçede yüklem (fiil) genellikle cümlenin sonunda yer alır.';
+  }
+  const parts = [];
+  if (best.missing.length) parts.push(`Eksik kelime: ${quote(best.missing)}`);
+  if (best.extra.length) parts.push(`Fazladan kelime: ${quote(best.extra)}`);
+  return parts.join(' · ') + '.';
+}
+
 function tileExercise(e, root, header) {
   root.innerHTML = `${header}
     <div class="answer-zone" id="az"></div>
@@ -1419,7 +1452,12 @@ function tileExercise(e, root, header) {
     if (e.lang === 'en' && e.type !== 'listen') speak(e.tiles[i]);
     redraw();
   }));
-  L.evaluate = () => ({ correct: exactMatch(chosen.map(i => e.tiles[i]).join(' '), e.answers, e.lang) });
+  L.evaluate = () => {
+    const said = chosen.map(i => e.tiles[i]).join(' ');
+    if (exactMatch(said, e.answers, e.lang)) return { correct: true };
+    const why = tileWhy(said, e.answers, e.lang);
+    return { correct: false, note: why ? `💡 ${esc(why)}` : undefined };
+  };
 }
 
 R.build = (e, root) => {
@@ -1591,6 +1629,8 @@ R.match = (e, root) => {
     } else {
       wrongs++;
       a.classList.add('flash-bad'); b.classList.add('flash-bad'); sfx.bad();
+      const pa = e.pairs[+a.dataset.i], pb = e.pairs[+b.dataset.i];
+      toast(`💡 “${esc(pa.en)}” = ${esc(pa.tr)} · “${esc(pb.tr)}” = ${esc(pb.en)}`);
       markWords([e.pairs[+a.dataset.i].en], false);
       setTimeout(() => { a.classList.remove('flash-bad'); b.classList.remove('flash-bad'); }, 450);
     }
@@ -1614,9 +1654,12 @@ R.match = (e, root) => {
 //   SEVİYE TESPİTİ
 // ==========================================================
 ex.mcq = item => {
-  const [text, correct, ...wrong] = item;
-  const options = shuffle([correct, ...wrong]);
-  return { type: 'mcq', text, options, correct: options.indexOf(correct), answerText: text.replace('___', correct), words: [] };
+  const [text, correct, w1, w2, why] = item;
+  const options = shuffle([correct, w1, w2]);
+  return {
+    type: 'mcq', text, options, correct: options.indexOf(correct), answerText: text.replace('___', correct), words: [],
+    explain: why, reasons: options.map(o => o === correct ? null : `“${o}” buraya uymuyor. ${why}`),
+  };
 };
 
 R.mcq = (e, root) => {
@@ -1634,9 +1677,9 @@ const hasTTS = () => 'speechSynthesis' in window && voices.length > 0;
 
 // ---------- Seviye tespiti ----------
 // Her seviye kolaydan zora 3 dilime ayrılır (ör. A1'in 14 ünitesi: 1–5, 6–10, 11–14).
-// Her dilimden o ünitelerin içeriğiyle 3 soru + seviye genelinden 3 dilbilgisi sorusu = 12 soru.
+// Her dilimden o ünitelerin içeriğiyle 4 soru + seviye genelinden 4 dilbilgisi sorusu = 16 soru.
 // Seviye geçilirse bir üst seviyeye geçilir; geçilemezse ilk zorlanılan dilimin ilk ünitesinden başlanır.
-const PL_BANDS = 3, PL_PER_BAND = 3, PL_MCQ = 3;
+const PL_BANDS = 3, PL_PER_BAND = 4, PL_MCQ = 4;
 const PL_SIZE = PL_BANDS * PL_PER_BAND + PL_MCQ;
 const PL_BAND_NAMES = ['başı', 'ortası', 'sonu'];
 
@@ -1660,19 +1703,21 @@ function placementBlock(li) {
     const w = fresh(words, x => 'w:' + x.en);
     const s1 = fresh(sents, x => 's:' + x.en);
     const s2 = fresh(sents, x => 's:' + x.en);
+    const s3 = fresh(sents, x => 's:' + x.en);
     const items = [
       lvl === 'A1' ? ex.choice(w, words) : ex.choiceRev(w, words),
       lvl === 'A1' ? ex.build(s1, sents, words, 'en') : ex.sentChoice(s1, words),
       dialogs.length ? ex.reply(fresh(dialogs, x => 'd:' + x[0]), dialogs, lvl === 'A1')
         : hasTTS() && !L.noListen ? ex.listenPick(s2, words) : ex.sentChoice(s2, words),
+      ex.fill(s3, words) || ex.sentChoice(s3, words),
     ];
-    // Dilim içinde kolaydan zora: kelime → cümle → diyalog/dinleme
-    items.forEach(e => list.push({ ...e, band }));
+    // Dilim içinde kolaydan zora: kelime → cümle → diyalog → boşluk doldurma
+    list.push(items.map(e => ({ ...e, band })));
   });
   const mcqs = [...Array(PL_MCQ)].map(() => ({ ...ex.mcq(fresh(PLACEMENT_BANK[lvl], q => 'q:' + q[0])), band: -1 }));
-  // Dilbilgisi sorularını dilimlerin arasına yerleştir
-  list.splice(3, 0, mcqs[0]); list.splice(7, 0, mcqs[1]); list.push(mcqs[2]);
-  return list.map(e => ({ ...e, tries: 0 }));
+  // Dilbilgisi sorularını dilimlerin arasına yerleştir: dilim1, D, dilim2, D, D, dilim3, D
+  const [b0, b1, b2] = list;
+  return [...b0, mcqs[0], ...b1, mcqs[1], mcqs[2], ...b2, mcqs[3]].map(e => ({ ...e, tries: 0 }));
 }
 
 const plNew = li => ({ li, asked: 0, skipped: 0, correct: 0, bands: [...Array(PL_BANDS)].map(() => ({ c: 0, t: 0 })), mcq: { c: 0, t: 0 } });
@@ -1732,7 +1777,7 @@ function finishPlacement() {
     const pct = Math.round(sc.correct / sc.total * 100);
     const bands = levelBands(li).map((u, b) => `<span class="pl-band ${sc.bandsOk[b] ? 'ok' : 'no'}" title="Ünite ${u[0] + 1}–${u[u.length - 1] + 1}">${sec.level} ${PL_BAND_NAMES[b]} · ${sc.bands[b].c}/${sc.bands[b].t}</span>`).join('');
     return `<div class="pl-level"><div class="pl-row"><span class="pl-lvl">${sec.level}</span><div class="bar"><div style="width:${pct}%;background:${sc.passed ? 'var(--ok)' : 'var(--accent)'}"></div></div><span class="pl-res">${sc.correct}/${sc.total} ${sc.passed ? '✅' : ''}</span></div>
-      <div class="pl-bands">${bands}<span class="pl-band ${sc.mcq.c >= 2 ? 'ok' : 'no'}">Dilbilgisi · ${sc.mcq.c}/${sc.mcq.t}</span></div></div>`;
+      <div class="pl-bands">${bands}<span class="pl-band ${sc.mcq.c >= Math.ceil(sc.mcq.t * 0.6) ? 'ok' : 'no'}">Dilbilgisi · ${sc.mcq.c}/${sc.mcq.t}</span></div></div>`;
   }).join('');
   const startUnit = res.allDone ? null : UNITS[res.unit];
   const desc = res.allDone
@@ -1783,7 +1828,7 @@ function renderWelcome() {
         <button class="practice-card" id="w-new"><div class="pi">🌱</div><div><h3>İngilizceye yeni başlıyorum</h3><p>En temelden, A1 seviyesinden başla.</p></div></button>
         <button class="practice-card" id="w-test"><div class="pi">🎯</div><div><h3>Biraz İngilizce biliyorum</h3><p>Seviye tespit sınavına gir, sana tam uygun üniteden başla.</p></div></button>
       </div>
-      <p class="welcome-note">Sınav seviye başına 12 sorudan oluşur (toplam 12–48 soru, yaklaşık 5–15 dakika). Başarılı oldukça bir üst seviyeye geçersin. Sonunda seni tam seviyene uygun <b>üniteden</b> başlatırız. Bilmediğin soruda tahmin etme, <b>Bilmiyorum</b>'a bas; sonuç daha doğru çıkar.</p>
+      <p class="welcome-note">Sınav seviye başına 16 sorudan oluşur (toplam 16–64 soru, yaklaşık 5–20 dakika). Her seviye kolaydan zora üç dilimde ölçülür. Başarılı oldukça bir üst seviyeye geçersin. Sonunda seni tam seviyene uygun <b>üniteden</b> başlatırız. Bilmediğin soruda tahmin etme, <b>Bilmiyorum</b>'a bas; sonuç daha doğru çıkar.</p>
     </div>`;
   $('#w-new').addEventListener('click', () => { S.onboarded = true; save(); renderApp(); });
   $('#w-test').addEventListener('click', startPlacement);
