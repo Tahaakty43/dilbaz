@@ -37,11 +37,11 @@ const KEEP_CASE = new Set(['I', 'Ali', 'Turkey', 'Monday', 'Friday', 'Türkiyeli
   'Elif', 'Ankara', 'TV', 'May', 'Sunday', 'Germany', "Almanya'ya", "İzmir'e", 'Wi-Fi', 'ATM', 'Italy', "İtalya'ya", "İtalya'da", 'Bayram', 'New', 'Year', 'Thursday']);
 const keepCase = t => KEEP_CASE.has(t) || /^I'/.test(t);
 UNITS.forEach(u => { u.level = u.level || 'A1'; u.dialogs = u.dialogs || []; });
-const LEVEL_NUM = { A1: 1, A2: 2, B1: 3, B2: 4 };
+const LEVEL_NUM = { A1: 1, A2: 2, B1: 3, B2: 4, C1: 5 };
 const sectionOfUnit = ui => SECTIONS.findIndex(s => s.level === UNITS[ui].level);
 const sectionStartUnit = si => UNITS.findIndex(u => u.level === SECTIONS[si].level);
 const lessonNames = ui => UNITS[ui].level === 'A1' ? LESSON_NAMES : ['Kelimeler ve kalıplar', 'Cümleler', 'Gerçek diyaloglar', 'Ünite tekrarı'];
-const LEVEL_XP = { A1: 10, A2: 15, B1: 20, B2: 25 };
+const LEVEL_XP = { A1: 10, A2: 15, B1: 20, B2: 25, C1: 30 };
 const lessonXp = (ui, li) => (LEVEL_XP[UNITS[ui].level] || 20) + (li === LPU - 1 ? 5 : 0);
 
 // ---------- İkonlar ----------
@@ -538,7 +538,7 @@ function genLesson(ui, li) {
 // A2 / B1: daha çok yazma, dikte ve gerçek diyalog; daha az ipucu
 function genAdvanced(ui, li) {
   const u = UNITS[ui];
-  const b1 = LEVEL_NUM[u.level] >= 3; // B1 ve B2: ipucu yok, daha çok yazılı/dinleme
+  const b1 = LEVEL_NUM[u.level] >= 3; // B1 ve üstü: ipucu yok, daha çok yazılı/dinleme
   const { words, sents, dialogs } = lessonContent(ui, li);
   const wordPool = u.words;
   const sentPool = UNITS.slice(Math.max(0, ui - 1), ui + 1).flatMap(x => x.sentences.concat(x.dialogs.map(d => ({ en: d[2], tr: d[3] }))));
@@ -1828,7 +1828,7 @@ function renderWelcome() {
         <button class="practice-card" id="w-new"><div class="pi">🌱</div><div><h3>İngilizceye yeni başlıyorum</h3><p>En temelden, A1 seviyesinden başla.</p></div></button>
         <button class="practice-card" id="w-test"><div class="pi">🎯</div><div><h3>Biraz İngilizce biliyorum</h3><p>Seviye tespit sınavına gir, sana tam uygun üniteden başla.</p></div></button>
       </div>
-      <p class="welcome-note">Sınav seviye başına 16 sorudan oluşur (toplam 16–64 soru, yaklaşık 5–20 dakika). Her seviye kolaydan zora üç dilimde ölçülür. Başarılı oldukça bir üst seviyeye geçersin. Sonunda seni tam seviyene uygun <b>üniteden</b> başlatırız. Bilmediğin soruda tahmin etme, <b>Bilmiyorum</b>'a bas; sonuç daha doğru çıkar.</p>
+      <p class="welcome-note">Sınav seviye başına 16 sorudan oluşur (toplam 16–80 soru, yaklaşık 5–25 dakika). Her seviye kolaydan zora üç dilimde ölçülür. Başarılı oldukça bir üst seviyeye geçersin. Sonunda seni tam seviyene uygun <b>üniteden</b> başlatırız. Bilmediğin soruda tahmin etme, <b>Bilmiyorum</b>'a bas; sonuç daha doğru çıkar.</p>
     </div>`;
   $('#w-new').addEventListener('click', () => { S.onboarded = true; save(); renderApp(); });
   $('#w-test').addEventListener('click', startPlacement);
