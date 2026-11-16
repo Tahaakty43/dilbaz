@@ -120,7 +120,7 @@ const defaultState = () => ({
   words: {}, daily: {}, goal: 30,
   sound: true, theme: 'auto',
   achievements: {}, tab: 'learn', onboarded: false, placement: null,
-  srs: {}, mistakes: {}, reads: {},
+  srs: {}, mistakes: {}, reads: {}, konu: {},
 });
 
 let S = load();
@@ -262,6 +262,29 @@ function speak(text, slow = false) {
   } catch (e) { /* yoksay */ }
 }
 const LISTEN_TYPES = ['listen', 'listenPick', 'listenWord'];
+const SPEAK_TYPES = ['speak'];
+
+// ---------- Konuşma tanıma ----------
+const SRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+const hasSR = () => !!SRec;
+let REC = null;
+function stopRec() { try { if (REC) REC.abort(); } catch (e) { /* yoksay */ } REC = null; }
+const NUM_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve',
+  'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty'];
+const spokenTokens = s => norm(String(s).replace(/\b(\d{1,2})\b/g, (m, n) => NUM_WORDS[+n] || m), 'en').split(' ').filter(Boolean);
+// Söylenen ile hedef cümle arasındaki benzerlik (en uzun ortak kelime dizisine göre)
+function speechMatch(heard, answer) {
+  const h = spokenTokens(heard), a = spokenTokens(answer);
+  const dp = [...Array(h.length + 1)].map(() => Array(a.length + 1).fill(0));
+  for (let i = 1; i <= h.length; i++) for (let j = 1; j <= a.length; j++)
+    dp[i][j] = h[i - 1] === a[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
+  const hit = new Set();
+  for (let i = h.length, j = a.length; i && j;) {
+    if (h[i - 1] === a[j - 1]) { hit.add(j - 1); i--; j--; } else if (dp[i - 1][j] >= dp[i][j - 1]) i--; else j--;
+  }
+  const lcs = dp[h.length][a.length];
+  return { score: h.length + a.length ? (2 * lcs) / (h.length + a.length) : 0, hit, words: a };
+}
 
 // ---------- Metin karşılaştırma ----------
 // İngilizce kısaltmaları açar: "I'm" = "I am", "don't" = "do not" gibi
@@ -499,6 +522,41 @@ const ex = {
   },
 };
 
+// ---------- Konu anlatımı ve konuşma egzersizleri ----------
+const grammarOf = ui => (typeof GRAMMAR !== 'undefined' && UNITS[ui] && GRAMMAR[UNITS[ui].title]) || null;
+ex.teach = (ui, i) => {
+  const g = grammarOf(ui), [h, body, exs] = g.steps[i];
+  return { type: 'teach', ui, title: g.title, step: i, n: g.steps.length, h, body, exs: exs || [], words: [] };
+};
+ex.gq = item => Object.assign(ex.mcq(item), { kind: 'konu' });
+ex.speak = (s, mode) => ({ type: 'speak', mode, en: s.en, tr: s.tr, answers: [s.en, ...(s.altEn || [])], audio: s.en, answerText: s.en, meaning: s.tr, words: [] });
+ex.speakReply = d => ({ type: 'speak', mode: 'reply', q: d[0], qtr: d[1], en: d[2], tr: d[3], answers: [d[2]], audio: d[2], answerText: d[2], meaning: d[3], words: [] });
+const grammarExercises = ui => [...grammarOf(ui).steps.map((_, i) => ex.teach(ui, i)), ...shuffle(grammarOf(ui).quiz).map(ex.gq)];
+// Konu anlatımı açılmış (ilk dersine gelinmiş) üniteler
+const openGrammarUnits = () => UNITS.map((u, i) => i).filter(i => grammarOf(i) && i * LPU <= S.progress);
+
+// Derse konu anlatımı, konu soruları ve sesli konuşma ekler
+function enrichLesson(ui, li, list) {
+  const g = grammarOf(ui), u = UNITS[ui], lvl = LEVEL_NUM[u.level] || 1;
+  const sents = shuffle(lessonContent(ui, li).sents), dls = shuffle(u.dialogs || []);
+  const extra = [];
+  // A1: duyduğunu tekrar et · A2 ve üstü: Türkçesini görüp İngilizce söyle · diyaloglarda sesli cevap ver
+  if (sents[0]) extra.push(ex.speak(sents[0], lvl === 1 || li === 0 ? 'repeat' : 'say'));
+  if (li >= 1 && sents[1]) extra.push(ex.speak(sents[1], lvl === 1 && li < 3 ? 'repeat' : 'say'));
+  if (li >= 2 && dls[0]) extra.push(ex.speakReply(dls[0]));
+  if (li === 3 && dls[1]) extra.push(ex.speakReply(dls[1]));
+  let head = [];
+  if (g) {
+    const q = shuffle(g.quiz);
+    if (li === 0) head = [...g.steps.map((_, i) => ex.teach(ui, i)), ...q.slice(0, 2).map(ex.gq)];
+    else if (li === 1) extra.push(...q.slice(0, 2).map(ex.gq));
+    else if (li === 3) extra.push(...q.slice(0, 3).map(ex.gq));
+  }
+  const body = [...list];
+  extra.forEach(x => body.splice(1 + Math.floor(Math.random() * body.length), 0, x));
+  return [...head, ...body];
+}
+
 function genLesson(ui, li) {
   if (UNITS[ui].level !== 'A1') return genAdvanced(ui, li);
   const u = UNITS[ui];
@@ -639,6 +697,20 @@ function genPractice(kind) {
     sample(sents, 4).forEach(s => list.push(ex.build(s, sents, pool, 'en')));
     sample(sents, 2).forEach(s => list.push(ex.build(s, sents, pool, 'tr')));
     sample(sents, 4).forEach(s => list.push(ex.sentChoice(s, pool)));
+  } else if (kind === 'grammar') {
+    // Açılmış konulardan karışık dilbilgisi soruları; son konular biraz daha sık gelir
+    const units = openGrammarUnits(), recent = units.slice(-4);
+    const items = [];
+    units.forEach(i => grammarOf(i).quiz.forEach(q => items.push({ q, w: recent.includes(i) ? 2 : 1 })));
+    const pick = shuffle(items.flatMap(x => x.w === 2 ? [x, x] : [x]));
+    const seen = new Set();
+    for (const x of pick) { if (seen.has(x.q)) continue; seen.add(x.q); list.push(ex.gq(x.q)); if (list.length === 10) break; }
+    return list;
+  } else if (kind === 'speak') {
+    const lvl = LEVEL_NUM[currentLevel()] || 1;
+    sample(sents, 3).forEach(s => list.push(ex.speak(s, 'repeat')));
+    sample(sents.filter(s => !list.some(e => e.en === s.en)), lvl > 1 ? 4 : 2).forEach(s => list.push(ex.speak(s, lvl > 1 ? 'say' : 'repeat')));
+    sample(dialogs, 3).forEach(d => list.push(ex.speakReply(d)));
   } else if (kind === 'listen') {
     sample(sents, 8).forEach(s => list.push(ex.build(s, sents, pool, 'en', 'listen')));
   } else if (kind === 'match') {
@@ -808,6 +880,7 @@ function renderLearn() {
             <div style="min-width:0"><div class="kicker">Durak ${ui + 1} · ${u.level}</div><h3>${esc(u.title)}</h3><p>${esc(u.desc)}</p></div>
             <div class="ucard-btns">
               ${u.story ? `<button class="icon-btn guide read ${S.reads[u.title] != null ? 'done' : ''}" data-read="${ui}" title="Okuma parçası">📖<span>Okuma${S.reads[u.title] != null ? ' ✓' : ''}</span></button>` : ''}
+              ${grammarOf(ui) ? `<button class="icon-btn guide konu ${S.konu[u.title] ? 'done' : ''}" data-konu="${ui}" title="Konu anlatımı">📘<span>Konu${S.konu[u.title] ? ' ✓' : ''}</span></button>` : ''}
               <button class="icon-btn guide" data-guide="${ui}" title="Ünite rehberi">${ICON.guide}<span>Rehber</span></button>
             </div>
           </div>
@@ -834,6 +907,11 @@ function renderLearn() {
   page.innerHTML = html;
 
   $$('[data-guide]', page).forEach(b => b.addEventListener('click', () => showGuide(+b.dataset.guide)));
+  $$('[data-konu]', page).forEach(b => b.addEventListener('click', () => {
+    const ui = +b.dataset.konu;
+    if (ui * LPU > S.progress) { toast('🔒 Bu konu, üniteye gelince açılır. Adım adım ilerle!'); return; }
+    showGrammar(ui);
+  }));
   $$('[data-read]', page).forEach(b => b.addEventListener('click', () => {
     const ui = +b.dataset.read;
     if (ui * LPU > S.progress) { toast('🔒 Bu ünitenin okuma parçası, üniteye gelince açılır.'); return; }
@@ -852,11 +930,31 @@ function renderLearn() {
   if (cur && S.progress > 0) setTimeout(() => cur.closest('.stop').scrollIntoView({ block: 'center', behavior: 'smooth' }), 60);
 }
 
+function teachHtml(h, body, exs) {
+  return `<div class="teach-step"><h3>${esc(h)}</h3><div class="teach-body">${body}</div>
+    ${exs && exs.length ? `<div class="teach-ex">${exs.map(([en, tr]) => `<div class="phrase"><button class="speaker mini" data-say="${esc(en)}" aria-label="Dinle">${ICON.speaker}</button><div><div class="pen">${esc(en)}</div><div class="ptr">${esc(tr)}</div></div></div>`).join('')}</div>` : ''}</div>`;
+}
+function showGrammar(ui) {
+  const u = UNITS[ui], g = grammarOf(ui);
+  const m = openModal(`
+    <div class="ex-kind">📘 Konu anlatımı · Ünite ${ui + 1} · ${u.level}</div>
+    <h2>${esc(g.title)}</h2>
+    ${g.steps.map(([h, body, exs], i) => teachHtml(`${i + 1}. ${h}`, body, exs)).join('')}
+    <div class="modal-actions" style="margin-top:20px">
+      <button class="btn primary block" data-study>Konuyu çalış · ${g.quiz.length} soru</button>
+      <button class="btn ghost block" data-close>Kapat</button>
+    </div>`);
+  $$('[data-say]', m).forEach(b => b.addEventListener('click', () => speak(b.dataset.say)));
+  $('[data-close]', m).addEventListener('click', closeModal);
+  $('[data-study]', m).addEventListener('click', () => startSession({ mode: 'grammar', ui, exercises: grammarExercises(ui) }));
+}
+
 function showGuide(ui) {
   const u = UNITS[ui];
   const m = openModal(`
     <div class="ex-kind">Ünite ${ui + 1} rehberi</div>
     <h2>${u.icon} ${esc(u.title)}</h2>
+    ${grammarOf(ui) && ui * LPU <= S.progress ? `<button class="btn ghost block" data-konu-open style="margin-bottom:12px">📘 Konu anlatımını aç: ${esc(grammarOf(ui).title)}</button>` : ''}
     <div class="guide-tip">${u.tip}</div>
     <h3 class="section-title">Anahtar cümleler</h3>
     ${u.sentences.map(s => `<div class="phrase"><button class="speaker mini" data-say="${esc(s.en)}" aria-label="Dinle">${ICON.speaker}</button><div><div class="pen">${esc(s.en)}</div><div class="ptr">${esc(s.tr)}</div></div></div>`).join('')}
@@ -870,6 +968,8 @@ function showGuide(ui) {
     <div class="modal-actions" style="margin-top:20px"><button class="btn block" data-close>Tamam</button></div>`);
   $$('[data-say]', m).forEach(b => b.addEventListener('click', () => speak(b.dataset.say)));
   $('[data-close]', m).addEventListener('click', closeModal);
+  const ko = $('[data-konu-open]', m);
+  if (ko) ko.addEventListener('click', () => showGrammar(ui));
 }
 
 function showTestIntro(si) {
@@ -896,6 +996,8 @@ function renderPractice() {
     <div class="practice-grid">
       <button class="practice-card featured" data-prac="review" ${ready ? '' : 'disabled'}><div class="pi">🧠</div><div><h3>Akıllı tekrar</h3><p>${ready ? `${dueWords().length} kelimenin tekrar zamanı geldi.` : 'Ders yaptıkça kelimelerin burada birikir.'} Unutmadan önce tazele.</p></div><span class="reward">+5 XP</span></button>
       <button class="practice-card" data-notebook ${mistakeList().length ? '' : 'disabled'}><div class="pi">📕</div><div><h3>Hata defteri (${mistakeList().length})</h3><p>${mistakeList().length ? 'Yanlış yaptığın cümleleri gör ve çalış.' : 'Henüz hata yok. Yanlış yaptığın cümleler buraya eklenir.'}</p></div><span class="reward">+5 XP</span></button>
+      <button class="practice-card featured" data-prac="speak" ${ready ? '' : 'disabled'}><div class="pi">🎤</div><div><h3>Konuşma pratiği</h3><p>Cümleleri sesli söyle, diyaloglarda sesli cevap ver. ${hasSR() ? 'Telaffuzun anında kontrol edilir.' : 'Bu tarayıcı sesi tanıyamıyor: dinle, sesli tekrar et ve kendini kontrol et.'}</p></div><span class="reward">+5 XP</span></button>
+      <button class="practice-card" data-prac="grammar" ${openGrammarUnits().length && ready ? '' : 'disabled'}><div class="pi">📘</div><div><h3>Dilbilgisi tekrarı</h3><p>Öğrendiğin ${openGrammarUnits().length} konudan karışık sorular. Kuralları unutma.</p></div><span class="reward">+5 XP</span></button>
       <button class="practice-card" data-prac="weak" ${ready ? '' : 'disabled'}><div class="pi">🎯</div><div><h3>Zayıf kelimeler</h3><p>En çok zorlandığın kelimeleri tekrar et.</p></div><span class="reward">+5 XP</span></button>
       <button class="practice-card" data-prac="listen" ${ready ? '' : 'disabled'}><div class="pi">🎧</div><div><h3>Dinleme pratiği</h3><p>Duyduğun cümleleri bul ve kur, kulağını alıştır.</p></div><span class="reward">+5 XP</span></button>
       <button class="practice-card" data-prac="match" ${ready ? '' : 'disabled'}><div class="pi">🧩</div><div><h3>Hızlı eşleştirme</h3><p>Kelimeleri anlamlarıyla eşleştir.</p></div><span class="reward">+5 XP</span></button>
@@ -1015,7 +1117,7 @@ let L = null;
 
 function startLesson(ui, li) {
   const g = ui * LPU + li;
-  startSession({ mode: 'lesson', ui, li, g, exercises: genLesson(ui, li), replay: g < S.progress });
+  startSession({ mode: 'lesson', ui, li, g, exercises: enrichLesson(ui, li, genLesson(ui, li)), replay: g < S.progress });
 }
 // ---------- Okuma bölümü ----------
 const readableUnits = () => UNITS.map((u, i) => i).filter(i => UNITS[i].story && i * LPU <= S.progress);
@@ -1051,6 +1153,8 @@ function startPractice(kind) {
 
 function startSession(cfg) {
   closeModal();
+  // Konuşma tanıma yoksa derslerdeki sesli konuşma soruları çıkarılır (pratikte kendin kontrol modu kalır)
+  if (!hasSR() && cfg.mode !== 'practice') cfg.exercises = cfg.exercises.filter(e => !SPEAK_TYPES.includes(e.type));
   L = Object.assign(cfg, {
     queue: cfg.exercises.map(e => ({ ...e, tries: 0 })), total: cfg.exercises.length,
     done: 0, mistakes: 0, combo: 0, maxCombo: 0, start: Date.now(), cur: null, phase: 'answer', evaluate: null,
@@ -1060,7 +1164,7 @@ function startSession(cfg) {
       <header class="lesson-top">
         <button class="icon-btn close" id="quit" aria-label="Dersten çık">${ICON.cross}</button>
         <div class="lt-mid">
-          <div class="lt-row"><span class="pl-tag" id="pltag">${L.mode === 'placement' ? '' : L.mode === 'test' ? 'Seviye atlama sınavı' : L.mode === 'practice' ? 'Pratik' : L.mode === 'reading' ? `📖 Okuma · ${esc(UNITS[L.ui].story.title)}` : `${esc(UNITS[L.ui].title)} · ${esc(lessonNames(L.ui)[L.li])}`}</span><span class="pcount" id="pcount"></span></div>
+          <div class="lt-row"><span class="pl-tag" id="pltag">${L.mode === 'placement' ? '' : L.mode === 'test' ? 'Seviye atlama sınavı' : L.mode === 'practice' ? 'Pratik' : L.mode === 'reading' ? `📖 Okuma · ${esc(UNITS[L.ui].story.title)}` : L.mode === 'grammar' ? `📘 Konu · ${esc(grammarOf(L.ui).title)}` : `${esc(UNITS[L.ui].title)} · ${esc(lessonNames(L.ui)[L.li])}`}</span><span class="pcount" id="pcount"></span></div>
           <div class="progress"><div class="progress-fill" id="pfill"></div></div>
         </div>
         <div class="lesson-hearts" id="lhearts" ${L.mode === 'test' ? '' : 'hidden'}>${ICON.cross}<span>${L.lives || 0}</span></div>
@@ -1088,7 +1192,7 @@ function confirmQuit() {
   const m = openModal(`${mascot('sad')}<h2>Bekle, gitme!</h2><p class="mtext">Şimdi çıkarsan bu dersteki ilerlemen kaybolacak.</p>
     <div class="modal-actions"><button class="btn primary" data-stay>Öğrenmeye devam et</button><button class="btn ghost" data-leave>Dersten çık</button></div>`, 'center');
   $('[data-stay]', m).addEventListener('click', closeModal);
-  $('[data-leave]', m).addEventListener('click', () => { closeModal(); try { speechSynthesis.cancel(); } catch (e) { /* yoksay */ } renderApp(); });
+  $('[data-leave]', m).addEventListener('click', () => { closeModal(); stopRec(); try { speechSynthesis.cancel(); } catch (e) { /* yoksay */ } renderApp(); });
 }
 
 const api = {
@@ -1101,6 +1205,7 @@ function next() {
   if (!L.queue.length && L.mode === 'placement' && placementAdvance()) return next();
   if (!L.queue.length) return finish();
   clearTimeout(L.autoNext);
+  stopRec();
   L.cur = L.queue.shift();
   L.phase = 'answer'; L.evaluate = null;
   const foot = $('#foot');
@@ -1110,7 +1215,7 @@ function next() {
   check.textContent = 'Kontrol et'; check.className = 'btn ok'; check.disabled = true;
   const skip = $('#skip');
   skip.style.display = L.cur.type === 'match' ? 'none' : '';
-  skip.textContent = LISTEN_TYPES.includes(L.cur.type) ? 'Şu an dinleyemiyorum' : L.mode === 'placement' ? 'Bilmiyorum' : 'Geç';
+  skip.textContent = LISTEN_TYPES.includes(L.cur.type) ? 'Şu an dinleyemiyorum' : SPEAK_TYPES.includes(L.cur.type) ? 'Şu an konuşamıyorum' : L.mode === 'placement' ? 'Bilmiyorum' : 'Geç';
   check.style.display = L.cur.type === 'match' || L.cur.options ? 'none' : '';
   const root = $('#ex');
   root.className = 'ex';
@@ -1148,6 +1253,16 @@ function onMainButton() {
 
 function onSkip() {
   if (!L || L.phase !== 'answer') return;
+  if (SPEAK_TYPES.includes(L.cur.type)) {
+    stopRec();
+    const removed = 1 + L.queue.filter(e => SPEAK_TYPES.includes(e.type)).length;
+    L.queue = L.queue.filter(e => !SPEAK_TYPES.includes(e.type));
+    L.total = Math.max(1, L.total - removed);
+    if (!L.queue.length && !L.done) { L = null; toast('🎤 Konuşma soruları atlandı.'); renderApp(); return; }
+    toast('🎤 Konuşma soruları bu oturumda atlandı. Puanını etkilemez.');
+    next();
+    return;
+  }
   if (LISTEN_TYPES.includes(L.cur.type)) {
     const removed = 1 + L.queue.filter(e => LISTEN_TYPES.includes(e.type)).length;
     L.queue = L.queue.filter(e => !LISTEN_TYPES.includes(e.type));
@@ -1172,6 +1287,7 @@ function markWords(list, ok) {
 
 function handleResult(r) {
   L.phase = 'feedback';
+  stopRec();
   const e = L.cur;
   $('#ex').classList.add('locked');
   if (r.silent) { L.done++; updateProgress(); next(); return; }
@@ -1241,7 +1357,7 @@ function finish() {
   const acc = Math.round(firstTry / (firstTry + L.mistakes) * 100);
   const perfect = L.mistakes === 0;
   let xp;
-  if (L.mode === 'reading') xp = 10;
+  if (L.mode === 'reading' || L.mode === 'grammar') xp = 10;
   else if (L.mode === 'practice') xp = 5;
   else if (L.mode === 'test') xp = 25;
   else if (L.replay) xp = 5;
@@ -1251,6 +1367,7 @@ function finish() {
     const t = UNITS[L.ui].title, score = L.total - 1 - Math.min(L.mistakes, L.total - 1);
     S.reads[t] = Math.max(S.reads[t] ?? 0, score);
   }
+  if (L.mode === 'grammar' || (L.mode === 'lesson' && L.li === 0 && grammarOf(L.ui))) S.konu[UNITS[L.ui].title] = 1;
 
   const today = dayKey();
   const goalBefore = todayXp() >= S.goal;
@@ -1314,7 +1431,7 @@ function finish() {
     <div class="result">
       <div class="result-card">
         <div class="rc-head">${mascot(perfect ? 'wow' : 'happy', 'bounce')}<div>
-          <div class="kicker">${mode === 'practice' ? 'Pratik' : mode === 'test' ? 'Seviye sınavı' : mode === 'reading' ? 'Okuma' : 'Ders'} tamamlandı</div>
+          <div class="kicker">${mode === 'practice' ? 'Pratik' : mode === 'test' ? 'Seviye sınavı' : mode === 'reading' ? 'Okuma' : mode === 'grammar' ? 'Konu' : 'Ders'} tamamlandı</div>
           <h1>${testPassed ? 'Sınavı geçtin!' : perfect ? 'Kusursuz!' : acc >= 80 ? 'Harika iş çıkardın!' : 'Tebrikler, bitirdin!'}</h1>
         </div></div>
         <div class="rc-main">
@@ -1664,13 +1781,109 @@ ex.mcq = item => {
 
 R.mcq = (e, root) => {
   const [before, after] = e.text.split('___');
-  root.innerHTML = `<div class="ex-kind">📐 Dilbilgisi</div>
+  root.innerHTML = `<div class="ex-kind">${e.kind === 'konu' ? '📘 Konu kontrolü' : '📐 Dilbilgisi'}</div>
     <h2 class="ex-title">Boşluğa uygun olanı seç</h2>
     <div class="fill-sentence">${esc(before)}<span class="blank" id="blank">&nbsp;</span>${esc(after)}</div>
     <div class="pills" style="margin-top:26px">${e.options.map((o, i) => `<button class="pill" data-key><span class="kbd">${i + 1}</span>${esc(o)}</button>`).join('')}</div>`;
   let sel = -1;
   const btns = bindOptions(root, '.pill', i => { sel = i; $('#blank', root).textContent = e.options[i]; api.ready(true); });
   L.evaluate = () => { markOptions(btns, sel, e.correct); return optResult(e, sel); };
+};
+
+// Konu anlatımı adımı: açıklama + sesli örnekler
+R.teach = (e, root) => {
+  root.innerHTML = `<div class="ex-kind">📘 Konu anlatımı · Adım ${e.step + 1}/${e.n}</div>
+    ${e.step === 0 ? `<div class="teach-topic">${esc(e.title)}</div>` : ''}
+    <div class="teach-dots">${[...Array(e.n)].map((_, i) => `<i class="${i <= e.step ? 'on' : ''}"></i>`).join('')}</div>
+    ${teachHtml(e.h, e.body, e.exs)}
+    <p class="story-hint">💡 Örnek cümlelere dokunarak dinleyebilirsin.</p>`;
+  $$('[data-say]', root).forEach(b => b.addEventListener('click', () => speak(b.dataset.say)));
+  $('#skip').style.display = 'none';
+  const check = $('#check');
+  check.style.display = ''; check.textContent = e.step + 1 === e.n ? 'Anladım, alıştırmaya geç' : 'Anladım, devam';
+  api.ready(true);
+  L.evaluate = () => ({ correct: true, silent: true });
+};
+
+const MIC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="9" y="3" width="6" height="11" rx="3" fill="currentColor"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"/></svg>';
+// Sesli konuşma: repeat = duyduğunu tekrar et · say = Türkçesini İngilizce söyle · reply = diyalogda sesli cevap ver
+R.speak = (e, root) => {
+  const T = { repeat: ['🎤 Sesli tekrar', 'Dinle ve sesli söyle'], say: ['🎤 İngilizce söyle', 'Bu cümleyi İngilizce söyle'], reply: ['🎤 Sesli cevap', 'Karşındakine sesli cevap ver'] }[e.mode];
+  const ans = tokens(e.en);
+  const hint = `${ans.slice(0, Math.max(1, Math.ceil(ans.length / 2))).join(' ')} …`;
+  let prompt;
+  if (e.mode === 'repeat') prompt = `<div class="sp-card"><button class="speaker" data-say aria-label="Dinle">${ICON.speaker}</button><button class="speaker slow" data-slow aria-label="Yavaş dinle">${ICON.turtle}</button><div><div class="sp-en" id="sp-target">${esc(e.en)}</div><div class="ptr">${esc(e.tr)}</div></div></div>`;
+  else if (e.mode === 'say') prompt = `<div class="sp-card tr"><div><div class="sp-tr">${esc(e.tr)}</div><div class="sp-hint" id="sp-hint" hidden>${esc(hint)}</div></div></div>`;
+  else prompt = `<div class="sp-chat"><div class="bubble"><button class="speaker mini" data-q aria-label="Dinle">${ICON.speaker}</button><div><div class="pen">${esc(e.q)}</div><div class="ptr">${esc(e.qtr)}</div></div></div>
+      <div class="sp-want">Söylemen gereken: <b>${esc(e.tr)}</b><div class="sp-hint" id="sp-hint" hidden>${esc(hint)}</div></div></div>`;
+  root.innerHTML = `<div class="ex-kind">${T[0]}</div><h2 class="ex-title">${T[1]}</h2>${prompt}
+    <div class="sp-mic-wrap">
+      <button class="mic-btn" id="mic" aria-label="Konuşmaya başla">${MIC}</button>
+      <div class="sp-status" id="sp-status">${hasSR() ? 'Mikrofona dokun ve İngilizce konuş' : 'Bu tarayıcı sesi tanıyamıyor. Cümleyi yüksek sesle söyle, sonra cevabı görüp kendini kontrol et.'}</div>
+      <div class="sp-heard" id="sp-heard"></div>
+      ${e.mode !== 'repeat' ? '<button class="btn ghost sm" id="sp-hint-btn">💡 İpucu</button>' : ''}
+    </div>`;
+  const say = $('[data-say]', root), slow = $('[data-slow]', root), q = $('[data-q]', root);
+  if (say) { say.addEventListener('click', () => speak(e.en)); setTimeout(() => speak(e.en), 250); }
+  if (slow) slow.addEventListener('click', () => speak(e.en, true));
+  if (q) { q.addEventListener('click', () => speak(e.q)); setTimeout(() => speak(e.q), 250); }
+  const hb = $('#sp-hint-btn', root);
+  if (hb) hb.addEventListener('click', () => { $('#sp-hint', root).hidden = false; hb.remove(); });
+  const status = $('#sp-status', root), heard = $('#sp-heard', root), mic = $('#mic', root);
+  const check = $('#check');
+
+  if (!hasSR()) {
+    // Kendin kontrol et modu
+    mic.style.display = 'none';
+    check.style.display = ''; check.textContent = 'Cevabı göster';
+    api.ready(true);
+    L.evaluate = () => ({ correct: true, note: `Doğrusu: <b>${esc(e.en)}</b><br>Senin söylediğinle karşılaştır, gerekirse tekrar et.` });
+    return;
+  }
+  check.style.display = 'none';
+  let tries = 0;
+  const judge = alts => {
+    let best = { score: -1 };
+    alts.forEach(t => e.answers.forEach(a => { const m = speechMatch(t, a); if (m.score > best.score) best = { ...m, heard: t }; }));
+    const ok = best.score >= (e.mode === 'repeat' ? 0.8 : 0.75);
+    if (e.mode === 'repeat') {
+      const tgt = $('#sp-target', root);
+      if (tgt && best.words) tgt.innerHTML = best.words.map((w, i) => `<span class="${best.hit.has(i) ? 'w-ok' : 'w-miss'}">${esc(w)}</span>`).join(' ');
+    }
+    heard.innerHTML = `Duyduğum: “${esc(best.heard)}” <small>%${Math.round(best.score * 100)} benzer</small>`;
+    if (ok) { handleResult({ correct: true, note: `Söylediğin: “${esc(best.heard)}”` }); return; }
+    tries++;
+    if (tries >= 3) { handleResult({ correct: false, note: `💡 Duyduğum: “${esc(best.heard)}”. Doğru cümleyi dinle ve yavaşça tekrar et.` }); return; }
+    status.textContent = e.mode === 'repeat' ? 'Kırmızı kelimeleri tam söyleyemedin. Tekrar dene!' : `Tam olmadı, tekrar dene (${3 - tries} hakkın kaldı).`;
+    sfx.bad();
+  };
+  mic.addEventListener('click', () => {
+    if (L.phase !== 'answer') return;
+    if (REC) { try { REC.stop(); } catch (err) { /* yoksay */ } return; }
+    try { speechSynthesis.cancel(); } catch (err) { /* yoksay */ }
+    const rec = new SRec();
+    rec.lang = 'en-US'; rec.interimResults = true; rec.maxAlternatives = 5; rec.continuous = false;
+    let alts = null;
+    rec.onresult = ev => {
+      const r = ev.results[ev.results.length - 1];
+      heard.textContent = r[0].transcript;
+      if (r.isFinal) alts = [...r].map(x => x.transcript);
+    };
+    rec.onerror = ev => {
+      status.textContent = /not-allowed|service-not-allowed/.test(ev.error) ? '🔒 Mikrofon izni verilmedi. Tarayıcı ayarlarından izin ver ya da “Şu an konuşamıyorum”a bas.'
+        : ev.error === 'no-speech' ? 'Ses duyamadım. Mikrofona dokun ve tekrar konuş.' : ev.error === 'network' ? 'Ses tanıma için internet bağlantısı gerekiyor.' : 'Bir sorun oldu, tekrar dene.';
+    };
+    rec.onend = () => {
+      if (REC === rec) REC = null;
+      mic.classList.remove('on');
+      if (alts && L && L.cur === e && L.phase === 'answer') judge(alts);
+    };
+    REC = rec;
+    try { rec.start(); } catch (err) { REC = null; status.textContent = 'Mikrofon başlatılamadı, tekrar dene.'; return; }
+    mic.classList.add('on');
+    status.textContent = 'Dinliyorum… konuş, bitince bekle';
+  });
+  L.evaluate = null;
 };
 
 const hasTTS = () => 'speechSynthesis' in window && voices.length > 0;

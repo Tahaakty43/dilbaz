@@ -9,6 +9,9 @@ Oyunlaştırılmış, tarayıcıda çalışan bir İngilizce öğrenme uygulamas
 - Uyarlanabilir seviye tespit sınavı: seviye başına 16 soru (16–80 soru), her seviye 3 dilimde ölçülür ve kullanıcı tam uygun üniteden başlatılır; her sorudan sonra doğru/yanlış geri bildirimi
 - 5 bölüm, 103 ünite, 412 ders: A1 Temeller (24) · A2 Günlük Hayat (24) · B1 Akıcı Konuşma (25) · B2 Usta Kullanıcı (18) · C1 İleri Düzey (12)
 - 1030 kelime, 902 örnek cümle, 589 gerçek hayat diyaloğu
+- **Konu anlatımı:** 103 ünitenin her birinde adım adım dilbilgisi dersi (her ünitede 3 adım, tablolar, sesli örnek cümleler, Türk öğrencilerin sık yaptığı hatalar) ve 4 konu sorusu. Ünitenin ilk dersi konu anlatımıyla başlar; “Konu” düğmesiyle istenince tekrar açılır
+- **Konuşma pratiği:** Cümleyi dinleyip sesli tekrar etme, Türkçesini görüp İngilizce söyleme ve diyaloglarda sesli cevap verme. Telaffuz, tarayıcının ses tanıma özelliğiyle kontrol edilir; ses tanıma desteklenmiyorsa “kendin kontrol et” modu açılır. Mikrofon isteğe bağlıdır, “Şu an konuşamıyorum” ile atlanabilir
+- Dilbilgisi tekrarı: açılan konulardan karışık sorular
 - Okuma bölümü: her ünite için kısa bir hikâye (103 hikâye), cümle cümle Türkçe çeviri, sesli okuma ve 3 anlama sorusu
 - Tamamen tıklamalı egzersizler (klavye ve mikrofon gerekmez): resimli kelime, anlam seçme, kelime kartlarıyla cümle kurma, doğru çeviriyi bulma, dinleyip cümle/kelime seçme, boşluk doldurma, eşleştirme, gerçek hayat diyalogları
 - Aralıklı tekrar sistemi (Leitner): kelimeler unutulmaya yakın zamanda (1, 3, 7, 14, 30 gün) tekrar gelir
@@ -24,10 +27,13 @@ Oyunlaştırılmış, tarayıcıda çalışan bir İngilizce öğrenme uygulamas
 
 İlerleme tarayıcının yerel depolamasında (localStorage) tutulur.
 
+Sesli konuşma kontrolü Chrome, Edge ve Android Chrome'da çalışır ve internet bağlantısı ister. Mikrofon izni için uygulamayı canlı sürümden (https) açman önerilir.
+
 ## Dosyalar
 
 - `js/data.js`, `js/data-a2.js`, `js/data-b1.js`, `js/data-more.js`, `js/data-more2.js`, `js/data-b2.js`, `js/data-a1x.js`, `js/data-a2x.js`, `js/data-b1x.js`, `js/data-b2x.js`, `js/data-c1.js` — ders içerikleri
 - `js/stories.js`, `js/stories-x.js` — okuma parçaları
+- `js/grammar-a1.js`, `js/grammar-a2.js`, `js/grammar-b1.js`, `js/grammar-b2c1.js` — konu anlatımları ve konu soruları
 - `js/placement.js` — seviye tespit soru bankası
 - `js/app.js` — uygulama ve ders motoru
 - `css/style.css` — tasarım
