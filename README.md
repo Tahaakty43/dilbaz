@@ -19,6 +19,7 @@ Oyunlaştırılmış, tarayıcıda çalışan bir İngilizce öğrenme uygulamas
 - **Günün görevi:** Her gün uygulama dışında yapılacak gerçek bir konuşma görevi (+10 XP)
 - **Artık yapabildiklerin:** Profilde biten her ünite için “… yapabilirim” listesi ve sıradaki hedefler
 - **Konuşma kontrolü:** 10 cümlelik ipucusuz konuşma sınavı; sonuçlar profilde takip edilir
+- **Cevap verme şekli:** Konuşma soruları varsayılan olarak çoktan seçmelidir (yazılı seçenekler); Profil > Cevap verme şekli ile mikrofonla sesli cevaba geçilebilir
 - **Ses:** Ortalama bir Amerikan erkek sesi tercih edilir; Profil > Konuşma hızı ile Yavaş / Normal / Doğal seçilebilir
 - **Cümle hata analizi:** Yanlış kurulan, seçilen ya da söylenen cümle doğrusuyla kelime kelime karşılaştırılır; eksik (yeşil), fazla (kırmızı) ve yeri yanlış (turuncu) kelimeler gösterilir, hatanın kuralı Türkçe açıklanır (am/is/are eksikliği, -s eki, geçmiş zaman, do/does, a/an/the, edatlar, soru sırası, Türkçe gibi fiili sona koyma…)
 - Dilbilgisi tekrarı: açılan konulardan karışık sorular

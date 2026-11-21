@@ -122,7 +122,7 @@ const defaultState = () => ({
   sound: true, theme: 'auto',
   achievements: {}, tab: 'learn', onboarded: false, placement: null,
   srs: {}, mistakes: {}, reads: {}, konu: {}, abroad: {},
-  rate: 'normal', challenges: {}, speakChecks: [], seenCasual: false,
+  rate: 'normal', answerMode: 'choice', challenges: {}, speakChecks: [], seenCasual: false,
 });
 
 let S = load();
@@ -1193,6 +1193,8 @@ function renderProfile() {
     <h2 class="section-title">Ayarlar</h2>
     <div class="panel settings">
       <label class="setting"><div><div>Ses efektleri</div><div class="sd">Doğru/yanlış sesleri</div></div><input type="checkbox" class="toggle" id="s-sound" ${S.sound ? 'checked' : ''}></label>
+      <div class="setting"><div><div>Cevap verme şekli</div><div class="sd">Konuşma sorularını seçeneklerden seçerek ya da mikrofonla sesli cevapla</div></div>
+        <select class="select" id="s-mode">${[['choice', 'Seçenekli (yazılı)'], ['voice', 'Sesli (mikrofon)']].map(([v, l]) => `<option value="${v}" ${S.answerMode === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
       <div class="setting"><div><div>Konuşma hızı</div><div class="sd">Dinleme seslerinin hızı. “Doğal” gerçek hayattaki gibidir.</div></div>
         <select class="select" id="s-rate">${[['slow', 'Yavaş'], ['normal', 'Normal'], ['natural', 'Doğal']].map(([v, l]) => `<option value="${v}" ${S.rate === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
       <div class="setting"><div><div>Günlük hedef</div><div class="sd">Her gün kazanmak istediğin XP</div></div>
@@ -1205,6 +1207,7 @@ function renderProfile() {
   $('#pname').addEventListener('change', e => { S.name = e.target.value.trim() || 'Öğrenci'; save(); renderApp(); });
   $('#s-sound').addEventListener('change', e => { S.sound = e.target.checked; save(); });
   $('#s-goal').addEventListener('change', e => { S.goal = +e.target.value; save(); renderApp(); });
+  $('#s-mode').addEventListener('change', e => { S.answerMode = e.target.value; save(); toast(S.answerMode === 'choice' ? 'Konuşma soruları artık çoktan seçmeli.' : 'Konuşma soruları artık mikrofonla.'); });
   $('#s-rate').addEventListener('change', e => { S.rate = e.target.value; save(); speak('Hi! This is how I sound now.'); });
   $('#s-theme').addEventListener('change', e => { S.theme = e.target.value; save(); applyTheme(); });
   $('#s-place').addEventListener('click', startPlacement);
@@ -1257,13 +1260,20 @@ function startPractice(kind) {
   startSession({ mode: 'practice', kind, exercises });
 }
 
+function toChoice(e) {
+  if (e.type !== 'speak') return e;
+  if (e.mode === 'reply') return ex.reply([e.q, e.qtr, e.en, e.tr], sample(allDialogs().filter(d => d[2] !== e.en), 20), true);
+  return ex.sentChoice({ en: e.en, tr: e.tr, altEn: (e.answers || []).slice(1) }, allWords());
+}
 function startSession(cfg) {
   closeModal();
   // Konuşma tanıma yoksa derslerdeki sesli konuşma soruları çıkarılır (pratikte kendin kontrol modu kalır)
-  if (!hasSR() && cfg.mode !== 'practice') cfg.exercises = cfg.exercises.filter(e => !SPEAK_TYPES.includes(e.type));
+  if (!hasSR() && cfg.mode !== 'practice' && S.answerMode !== 'choice') cfg.exercises = cfg.exercises.filter(e => !SPEAK_TYPES.includes(e.type));
+  // Seçenekli mod: mikrofonla cevaplanan sorular çoktan seçmeliye çevrilir
+  if (S.answerMode === 'choice') cfg.exercises = cfg.exercises.map(toChoice);
   L = Object.assign(cfg, {
     queue: cfg.exercises.map(e => ({ ...e, tries: 0 })), total: cfg.exercises.length,
-    done: 0, mistakes: 0, combo: 0, maxCombo: 0, start: Date.now(), cur: null, phase: 'answer', evaluate: null,
+    done: 0, mistakes: 0, combo: 0, maxCombo: 0, start: Date.now(), cur: null, phase: 'answer', evaluate: null, clickMode: S.answerMode === 'choice',
   });
   $('#app').innerHTML = `
     <div class="lesson">
@@ -2065,7 +2075,7 @@ function renderAbroad() {
   let html = `<h1 class="page-title">Yurt dışında konuş</h1>
     <div class="practice-hero panel">${mascot('happy', 'bounce')}<div>
       <h3>Sokakta, kafede, havalimanında… gerçek konuşmalar</h3>
-      <p class="muted">Karşındaki kişi doğal hızda konuşur, sen sesli cevap verirsin. Tek bir doğru cümle yok; söylediğin anlaşılırsa kabul edilir. ${done}/${total} konuşmayı tamamladın.</p>
+      <p class="muted">Karşındaki kişi doğal hızda konuşur, sen ${S.answerMode === 'choice' ? 'doğru cevabı seçeneklerden seçersin (Profil > Cevap verme şekli ile sesliye çevirebilirsin)' : 'sesli cevap verirsin. Tek bir doğru cümle yok; söylediğin anlaşılırsa kabul edilir'}. ${done}/${total} konuşmayı tamamladın.</p>
     </div></div>
     <button class="practice-card featured survival" data-survival><div class="pi">🛟</div><div><h3>Hayat kurtaran kalıplar ${S.abroad.survival ? '✓' : ''}</h3><p>Anlamadığında, kelimeyi bilmediğinde ya da takıldığında ne diyeceğini öğren. Önce bunu yap!</p></div><span class="reward">+15 XP</span></button>`;
   SECTIONS.forEach(sec => {
