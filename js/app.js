@@ -1325,7 +1325,7 @@ function handleResult(r) {
     }
   } else {
     L.mistakes++; L.combo = 0;
-    if (e.src && !r.skipped && L.mode !== 'placement') { recordMistake(e.src, r.note); L.newMistakes = (L.newMistakes || 0) + 1; }
+    if (e.src && !r.skipped && L.mode !== 'placement') { recordMistake(e.src, r.why || r.note); L.newMistakes = (L.newMistakes || 0) + 1; }
     foot.className = 'lesson-foot wrong';
     check.className = 'btn bad';
     const note = r.note || (e.explain ? `💡 ${esc(e.explain)}` : '');
@@ -1492,8 +1492,12 @@ function bindOptions(root, selector, onPick) {
 }
 function optResult(e, sel) {
   const correct = sel === e.correct;
+  if (!correct && ['sentChoice', 'listenPick'].includes(e.type) && e.options[sel] && e.answerText) {
+    const ws = explainSentence(e.options[sel], e.answerText, 'en');
+    if (ws && ws.score >= 0.6 && ws.reasons.length) return { correct, note: ws.html, why: ws.text };
+  }
   const why = !correct && e.reasons && e.reasons[sel];
-  return { correct, note: why ? `💡 ${esc(why)}` : undefined };
+  return { correct, note: why ? `💡 ${esc(why)}` : undefined, why: why || undefined };
 }
 function markOptions(btns, sel, correct) {
   btns[correct] && btns[correct].classList.add('is-correct');
@@ -1580,8 +1584,12 @@ function tileExercise(e, root, header) {
   L.evaluate = () => {
     const said = chosen.map(i => e.tiles[i]).join(' ');
     if (exactMatch(said, e.answers, e.lang)) return { correct: true };
+    if (said.trim()) {
+      const ws = explainSentence(said, closestAnswer(said, e.answers, e.lang), e.lang);
+      if (ws && ws.reasons.length) return { correct: false, note: ws.html, why: ws.text };
+    }
     const why = tileWhy(said, e.answers, e.lang);
-    return { correct: false, note: why ? `💡 ${esc(why)}` : undefined };
+    return { correct: false, note: why ? `💡 ${esc(why)}` : undefined, why };
   };
 }
 
@@ -1861,7 +1869,10 @@ R.speak = (e, root) => {
     heard.innerHTML = `Duyduğum: “${esc(best.heard)}” <small>%${Math.round(best.score * 100)} benzer</small>`;
     if (ok) { handleResult({ correct: true, note: `Söylediğin: “${esc(best.heard)}”` }); return; }
     tries++;
-    if (tries >= 3) { handleResult({ correct: false, note: `💡 Duyduğum: “${esc(best.heard)}”. Doğru cümleyi dinle ve yavaşça tekrar et.` }); return; }
+    const ws = explainSentence(best.heard, closestAnswer(best.heard, e.answers, 'en'), 'en');
+    const wsOk = ws && ws.score >= 0.4 && ws.reasons.length;
+    if (wsOk) heard.innerHTML += ws.html;
+    if (tries >= 3) { handleResult(wsOk ? { correct: false, note: ws.html, why: ws.text } : { correct: false, note: `💡 Duyduğum: “${esc(best.heard)}”. Doğru cümleyi dinle ve yavaşça tekrar et.` }); return; }
     status.textContent = e.mode === 'repeat' ? 'Kırmızı kelimeleri tam söyleyemedin. Tekrar dene!' : `Tam olmadı, tekrar dene (${3 - tries} hakkın kaldı).`;
     sfx.bad();
   };
@@ -2004,7 +2015,10 @@ function speechInput(e, root, th) {
     alts.forEach(t => e.answers.forEach(a => { const m = speechMatch(t, a); if (m.score > best.score) best = { ...m, heard: t, ans: a }; }));
     heard.innerHTML = `Duyduğum: “${esc(best.heard)}” <small>%${Math.round(best.score * 100)} benzer</small>`;
     if (best.score >= th) { handleResult({ correct: true, note: `Söylediğin: “${esc(best.heard)}”` }); return; }
-    if (++tries >= 3) { handleResult({ correct: false, note: `💡 Duyduğum: “${esc(best.heard)}”. Örnek cevabı dinle ve tekrar et.` }); return; }
+    const ws = explainSentence(best.heard, best.ans, 'en');
+    const wsOk = ws && ws.score >= 0.5 && ws.reasons.length;
+    if (wsOk) heard.innerHTML += ws.html;
+    if (++tries >= 3) { handleResult(wsOk ? { correct: false, note: ws.html, why: ws.text } : { correct: false, note: `💡 Duyduğum: “${esc(best.heard)}”. Örnek cevabı dinle ve tekrar et.` }); return; }
     status.textContent = `Tam anlaşılmadı, tekrar dene (${3 - tries} hakkın kaldı).`;
     sfx.bad();
   };

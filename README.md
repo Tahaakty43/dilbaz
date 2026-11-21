@@ -13,6 +13,7 @@ Oyunlaştırılmış, tarayıcıda çalışan bir İngilizce öğrenme uygulamas
 - **Konuşma pratiği:** Cümleyi dinleyip sesli tekrar etme, Türkçesini görüp İngilizce söyleme ve diyaloglarda sesli cevap verme. Telaffuz, tarayıcının ses tanıma özelliğiyle kontrol edilir; ses tanıma desteklenmiyorsa “kendin kontrol et” modu açılır. Mikrofon isteğe bağlıdır, “Şu an konuşamıyorum” ile atlanabilir
 - **Yurt dışı sekmesi:** 25 gerçek hayat senaryosu (kafe, taksi, otel, pasaport kontrolü, eczane, kayıp bagaj, komşuyla sohbet, polis, iş görüşmesi, uçuş iptali, kira pazarlığı…). Karşı taraf doğal hızda konuşur, kullanıcı birkaç tur süren konuşmada sesli cevap verir; farklı doğru cevaplar kabul edilir, istenirse seçeneklerle cevaplanır. Senaryolar seviye geldikçe açılır
 - **Hayat kurtaran kalıplar:** anlamadığında, kelimeyi bilmediğinde ya da takıldığında konuşmayı sürdürme stratejileri
+- **Cümle hata analizi:** Yanlış kurulan, seçilen ya da söylenen cümle doğrusuyla kelime kelime karşılaştırılır; eksik (yeşil), fazla (kırmızı) ve yeri yanlış (turuncu) kelimeler gösterilir, hatanın kuralı Türkçe açıklanır (am/is/are eksikliği, -s eki, geçmiş zaman, do/does, a/an/the, edatlar, soru sırası, Türkçe gibi fiili sona koyma…)
 - Dilbilgisi tekrarı: açılan konulardan karışık sorular
 - Okuma bölümü: her ünite için kısa bir hikâye (103 hikâye), cümle cümle Türkçe çeviri, sesli okuma ve 3 anlama sorusu
 - Tamamen tıklamalı egzersizler (klavye ve mikrofon gerekmez): resimli kelime, anlam seçme, kelime kartlarıyla cümle kurma, doğru çeviriyi bulma, dinleyip cümle/kelime seçme, boşluk doldurma, eşleştirme, gerçek hayat diyalogları
@@ -37,6 +38,7 @@ Sesli konuşma kontrolü Chrome, Edge ve Android Chrome'da çalışır ve intern
 - `js/stories.js`, `js/stories-x.js` — okuma parçaları
 - `js/grammar-a1.js`, `js/grammar-a2.js`, `js/grammar-b1.js`, `js/grammar-b2c1.js` — konu anlatımları ve konu soruları
 - `js/abroad.js` — yurt dışı senaryoları ve hayat kurtaran kalıplar
+- `js/why.js` — cümle hata analizcisi
 - `js/placement.js` — seviye tespit soru bankası
 - `js/app.js` — uygulama ve ders motoru
 - `css/style.css` — tasarım

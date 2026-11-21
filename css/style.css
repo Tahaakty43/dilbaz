@@ -711,3 +711,13 @@ svg { flex: none; }
 .rp-turn b { display: block; color: var(--ink); font-size: 17px; margin-top: 2px; }
 .rp-turn + .opts { margin-top: 14px; }
 .rp-turn + .sp-mic-wrap { margin-top: 18px; }
+
+/* Cümle hata analizi */
+.why-diff { display: block; margin: 8px 0 4px; padding: 8px 10px; border-radius: 10px; background: var(--card, rgba(0,0,0,.04)); border: 1px solid var(--line, rgba(0,0,0,.08)); color: var(--text); font-size: 14.5px; line-height: 1.6; }
+.wd-row { display: block; }
+.wd-row em { font-style: normal; font-size: 12px; font-weight: 700; color: var(--muted); display: inline-block; min-width: 62px; }
+.why-diff .w-bad { color: var(--bad); text-decoration: line-through; font-weight: 700; }
+.why-diff .w-add { color: var(--ok); font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }
+.why-diff .w-move { color: #C77700; font-weight: 800; border-bottom: 2px dotted currentColor; }
+.why-r { display: block; margin-top: 4px; color: var(--text); font-size: 13.5px; }
+.sp-heard .why-diff { text-align: left; }
