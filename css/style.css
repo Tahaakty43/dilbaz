@@ -721,3 +721,23 @@ svg { flex: none; }
 .why-diff .w-move { color: #C77700; font-weight: 800; border-bottom: 2px dotted currentColor; }
 .why-r { display: block; margin-top: 4px; color: var(--text); font-size: 13.5px; }
 .sp-heard .why-diff { text-align: left; }
+
+/* Günün görevi */
+.daily-card { display: flex; gap: 14px; align-items: center; margin: 0 0 18px; padding: 16px 18px; border-left: 4px solid var(--accent); }
+.daily-card.done { border-left-color: var(--ok); opacity: .85; }
+.dc-ico { font-size: 30px; }
+.dc-body { flex: 1; min-width: 0; }
+.dc-body h3 { margin: 2px 0 4px; font-size: 17px; }
+.dc-body p { margin: 0; color: var(--muted); font-size: 14px; }
+.dc-ex { margin-top: 6px; font-size: 13.5px; color: var(--text); }
+@media (max-width: 600px) { .daily-card { flex-wrap: wrap; } .dc-act { width: 100%; } .dc-act .btn { width: 100%; } }
+/* Artık yapabildiklerin */
+.cando { margin-bottom: 26px; display: flex; flex-direction: column; gap: 6px; }
+.cd-row { font-size: 14.5px; padding: 4px 0; color: var(--muted); }
+.cd-row.ok { color: var(--text); }
+.cd-row.ok::first-letter { color: var(--ok); font-weight: 800; }
+.cd-next { margin-top: 10px; font-weight: 700; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.cd-checks { display: flex; gap: 8px; flex-wrap: wrap; }
+.cd-checks span { display: flex; flex-direction: column; align-items: center; padding: 8px 12px; border-radius: 12px; background: var(--ok-soft); }
+.cd-checks small { font-size: 11.5px; color: var(--muted); }
+.cando details summary { cursor: pointer; color: var(--brand); font-size: 14px; margin: 4px 0; }

@@ -122,6 +122,7 @@ const defaultState = () => ({
   sound: true, theme: 'auto',
   achievements: {}, tab: 'learn', onboarded: false, placement: null,
   srs: {}, mistakes: {}, reads: {}, konu: {}, abroad: {},
+  rate: 'normal', challenges: {}, speakChecks: [], seenCasual: false,
 });
 
 let S = load();
@@ -224,7 +225,7 @@ function applyTheme() {
 // ---------- Ses ----------
 let actx = null;
 function beep(notes, type = 'sine', vol = 0.12) {
-  if (!S.sound) return;
+  if (!S.sound || (typeof MUTE !== 'undefined' && MUTE)) return;
   try {
     actx = actx || new (window.AudioContext || window.webkitAudioContext)();
     let t = actx.currentTime;
@@ -250,14 +251,23 @@ function loadVoices() {
   voices = speechSynthesis.getVoices().filter(v => /^en(-|_)/i.test(v.lang));
 }
 if ('speechSynthesis' in window) { loadVoices(); speechSynthesis.onvoiceschanged = loadVoices; }
+const MUTE = /[?&]mute/.test(location.search);
+const RATES = { slow: 0.8, normal: 0.92, natural: 1.05 };
+// Ortalama bir Amerikan erkek sesi tercih edilir; yoksa herhangi bir en-US ses
+const MALE_RE = /\b(guy|david|mark|james|andrew|christopher|eric|brian|roger|steffan|davis|tony|jason|aaron|fred|tom|alex|daniel|male|man)\b/i;
+function pickVoice() {
+  const us = voices.filter(v => /en[-_]US/i.test(v.lang));
+  return us.find(v => MALE_RE.test(v.name) && /natural|online|neural/i.test(v.name)) || us.find(v => MALE_RE.test(v.name))
+    || us.find(v => /natural|google/i.test(v.name)) || us[0] || voices[0];
+}
 function speak(text, slow = false) {
-  if (!('speechSynthesis' in window)) return;
+  if (!('speechSynthesis' in window) || MUTE) return;
   try {
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'en-US';
-    u.rate = slow ? 0.55 : 0.92;
-    const v = voices.find(v => /en-US/i.test(v.lang) && /natural|google|samantha|aria|jenny/i.test(v.name)) || voices.find(v => /en-US/i.test(v.lang)) || voices[0];
+    u.rate = slow ? 0.55 : (RATES[S.rate] || 0.92);
+    const v = pickVoice();
     if (v) u.voice = v;
     speechSynthesis.speak(u);
   } catch (e) { /* yoksay */ }
@@ -325,7 +335,7 @@ function lessonContent(ui, li) {
   const u = UNITS[ui], d = u.dialogs;
   if (li === 0) return { words: u.words.slice(0, 5), sents: u.sentences.slice(0, 3), dialogs: d.slice(0, 2) };
   if (li === 1) return { words: u.words.slice(5, 10), sents: u.sentences.slice(3, 6), dialogs: d.slice(2, 4) };
-  if (li === 2) return { words: u.words, sents: u.sentences.slice(6).concat(u.sentences.slice(0, 2)), dialogs: d };
+  if (li === 2) return { words: u.words.length > 10 ? u.words.slice(10, 20) : u.words, sents: u.sentences.slice(6).concat(u.sentences.slice(0, 2)), dialogs: d };
   return { words: u.words, sents: u.sentences, dialogs: d };
 }
 const allDialogs = () => UNITS.flatMap(u => u.dialogs);
@@ -556,6 +566,11 @@ function enrichLesson(ui, li, list) {
   return [...head, ...body];
 }
 
+// Ek kelimeler için alıştırmalar (ünitenin 3. dersi): her kelime en az bir kez sorulur
+function newWordDrill(ws, pool) {
+  const kinds = [ex.choice, ex.choiceRev, ex.listenWord];
+  return ws.slice(5, 10).map((w, i) => kinds[i % 3](w, pool)).concat(ws.length >= 8 ? [ex.match(ws.slice(5, 10), pool)] : []);
+}
 function genLesson(ui, li) {
   if (UNITS[ui].level !== 'A1') return genAdvanced(ui, li);
   const u = UNITS[ui];
@@ -579,6 +594,7 @@ function genLesson(ui, li) {
     rest.push(ex.fill(S_(0), wordPool) || ex.build(S_(0), sentPool, wordPool, 'tr'));
     rest.push(ex.listenWord(W_(1), pool));
     if (dialogs.length) rest.push(ex.reply(pickOne(dialogs), u.dialogs, true));
+    if (li === 2 && u.words.length > 10) rest.push(...newWordDrill(ws, pool));
   } else {
     intro.push(ex.choice(W_(0), pool), ex.choiceRev(W_(1), pool));
     rest.push(ex.choice(W_(2), pool), ex.match(ws.slice(0, 5), pool), ex.match(ws.slice(5, 10), pool));
@@ -622,6 +638,7 @@ function genAdvanced(ui, li) {
     rest.push(ex.listenPick(Sn(3), wordPool));
     rest.push(b1 ? ex.listenPick(Sn(4), wordPool) : ex.build(Sn(4), sentPool, wordPool, 'en', 'listen'));
     rest.push(ex.match(sample(words, 5), pool));
+    if (u.words.length > 10) { intro.unshift(ex.choice(W(0), pool), ex.choiceRev(W(1), pool), ex.listenWord(W(2), pool)); rest.push(ex.choice(W(3), pool), ex.choiceRev(W(4), pool), ...newWordDrill(ws, pool)); }
   } else if (!b1) {
     intro.push(W(0).emoji ? ex.pick(W(0), pool) : ex.choice(W(0), pool), ex.choice(W(1), pool));
     rest.push(ex.choiceRev(W(2), pool), ex.match(words, pool));
@@ -669,7 +686,57 @@ function genTest(si) {
   return shuffle(list);
 }
 
+const openLevels = () => SECTIONS.map(s => s.level).filter(l => levelOpen(l));
+function fluencyPool() {
+  const lv = openLevels();
+  return lv.flatMap((l, k) => (FLUENCY[l] || []).map(([en, tr, exEn, exTr]) => ({ en, tr, emoji: '💬', ex: exEn, exTr, lvl: l, recent: k === lv.length - 1 })));
+}
+const escRe = t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function blankEx(item, others, kind, why) {
+  const re = new RegExp(escRe(item.en.replace(/[?!.]$/, '')), 'i');
+  if (!re.test(item.ex)) return null;
+  const wr = sample(others.filter(o => o.en !== item.en), 2).map(o => o.en.replace(/[?!.]$/, ''));
+  if (wr.length < 2) return null;
+  return Object.assign(ex.mcq([item.ex.replace(re, '___'), item.en.replace(/[?!.]$/, ''), wr[0], wr[1], why]), { kind, audio: item.ex, answerText: item.ex, meaning: item.exTr });
+}
+const casualPool = () => CASUAL.map(([en, full, tr, exEn, exTr]) => ({ en, tr: `${full} (${tr})`, emoji: '🗣️', ex: exEn, exTr, full }));
 function genPractice(kind) {
+  if (kind === 'phrases') {
+    const pool = fluencyPool(), recent = pool.filter(p => p.recent);
+    const pick = sample(recent, Math.min(6, recent.length)).concat(sample(pool.filter(p => !p.recent), 4)).slice(0, 10);
+    const out = [];
+    pick.forEach((p, i) => {
+      const k = i % 3;
+      const e = k === 0 ? ex.choice(p, pool) : k === 1 ? ex.choiceRev(p, pool) : (blankEx(p, pool, 'akici', `“${p.en}” = ${p.tr}. Bu kalıp bu durumda kullanılır.`) || ex.choice(p, pool));
+      out.push(Object.assign(e, { words: [] }));
+    });
+    sample(pick, 2).forEach(p => out.push(ex.speak({ en: p.ex, tr: p.exTr }, 'repeat')));
+    if (pick.length >= 5) out.push(Object.assign(ex.match(sample(pick, 5), pool), { words: [] }));
+    return shuffle(out);
+  }
+  if (kind === 'casual') {
+    const pool = casualPool(), pick = sample(pool, 8), out = [], head = [];
+    if (!S.seenCasual) {
+      head.push(teachEx('Gündelik konuşma', [['Kelimeler neden “yutuluyor”?', `<p>Günlük konuşmada sık kullanılan kelimeler birleşir ve kısalır. Ders kitabında <b>going to</b> yazar, sokakta <b>gonna</b> duyarsın.</p>
+        <ul><li><b>gonna</b> = going to · <b>wanna</b> = want to · <b>gotta</b> = have got to</li><li><b>dunno</b> = don't know · <b>lemme</b> = let me · <b>gimme</b> = give me</li></ul>
+        <p class="warn">💡 Bunları <b>anlamak</b> çok önemli. Kendin konuşurken kullanman şart değil; resmi yazıda ise kullanılmaz.</p>`,
+        [["I'm gonna call you later.", 'Seni sonra arayacağım.'], ['I dunno.', 'Bilmiyorum.']]]], 0));
+      S.seenCasual = true; save();
+    }
+    pick.forEach((p, i) => {
+      const k = i % 3;
+      const e = k === 0 ? ex.choice(p, pool) : k === 1 ? (blankEx(p, pool, 'gundelik', `“${p.en}” = ${p.full} (${p.tr.replace(/^.*\(|\)$/g, '')}). Gündelik konuşmada bu şekilde söylenir.`) || ex.choiceRev(p, pool)) : ex.choiceRev(p, pool);
+      out.push(Object.assign(e, { words: [] }));
+    });
+    sample(pick, 3).forEach(p => out.push(Object.assign(ex.listenPick({ en: p.ex, tr: p.exTr }, []), { words: [] })));
+    return head.concat(shuffle(out));
+  }
+  if (kind === 'speakcheck') {
+    const c = learnedContent(), out = [];
+    sample(c.sents, 6).forEach(s => out.push(ex.speak(s, 'say')));
+    sample(c.dialogs, 4).forEach(d => out.push(ex.speakReply(d)));
+    return out;
+  }
   const { words, sents, dialogs } = learnedContent();
   const pool = words.length >= 6 ? words : allWords().slice(0, 20);
   const list = [];
@@ -853,9 +920,27 @@ function heroCard() {
   </section>`;
 }
 
+function dailyCard() {
+  if (typeof DAILY_TASKS === 'undefined') return '';
+  const today = dayKey(), n = Math.floor(new Date(today).getTime() / 864e5);
+  const [title, desc, sample_] = DAILY_TASKS[n % DAILY_TASKS.length];
+  const done = !!S.challenges[today], total = Object.keys(S.challenges).length;
+  return `<section class="panel daily-card ${done ? 'done' : ''}">
+    <div class="dc-ico">${done ? '✅' : '🎯'}</div>
+    <div class="dc-body"><div class="kicker">Günün görevi · uygulama dışında</div><h3>${esc(title)}</h3><p>${esc(desc)}</p><div class="dc-ex">Örnek: <i>${esc(sample_)}</i></div></div>
+    <div class="dc-act">${done ? `<span class="muted">Tamamlandı · toplam ${total}</span>` : '<button class="btn primary sm" data-daily>Yaptım +10 XP</button>'}</div>
+  </section>`;
+}
+document.addEventListener('click', ev => {
+  if (!ev.target.closest('[data-daily]')) return;
+  const today = dayKey();
+  if (S.challenges[today]) return;
+  S.challenges[today] = 1; S.xp += 10; S.daily[today] = (S.daily[today] || 0) + 10;
+  save(); sfx.win(); toast('Harika! Gerçek hayatta pratik yaptın: +10 XP'); renderApp();
+});
 function renderLearn() {
   const page = $('#page');
-  let html = heroCard() + reviewCard();
+  let html = heroCard() + dailyCard() + reviewCard();
   UNITS.forEach((u, ui) => {
     const unitLocked = ui * LPU > S.progress;
     const si = sectionOfUnit(ui);
@@ -997,6 +1082,9 @@ function renderPractice() {
       <button class="practice-card featured" data-prac="review" ${ready ? '' : 'disabled'}><div class="pi">🧠</div><div><h3>Akıllı tekrar</h3><p>${ready ? `${dueWords().length} kelimenin tekrar zamanı geldi.` : 'Ders yaptıkça kelimelerin burada birikir.'} Unutmadan önce tazele.</p></div><span class="reward">+5 XP</span></button>
       <button class="practice-card" data-notebook ${mistakeList().length ? '' : 'disabled'}><div class="pi">📕</div><div><h3>Hata defteri (${mistakeList().length})</h3><p>${mistakeList().length ? 'Yanlış yaptığın cümleleri gör ve çalış.' : 'Henüz hata yok. Yanlış yaptığın cümleler buraya eklenir.'}</p></div><span class="reward">+5 XP</span></button>
       <button class="practice-card featured" data-prac="speak" ${ready ? '' : 'disabled'}><div class="pi">🎤</div><div><h3>Konuşma pratiği</h3><p>Cümleleri sesli söyle, diyaloglarda sesli cevap ver. ${hasSR() ? 'Telaffuzun anında kontrol edilir.' : 'Bu tarayıcı sesi tanıyamıyor: dinle, sesli tekrar et ve kendini kontrol et.'}</p></div><span class="reward">+5 XP</span></button>
+      <button class="practice-card featured" data-prac="phrases"><div class="pi">💬</div><div><h3>Akıcılık kalıpları</h3><p>“To be honest”, “It depends”, “No worries”… Yerlilerin her gün kullandığı hazır kalıplar. Seviyene göre açılır.</p></div><span class="reward">+5 XP</span></button>
+      <button class="practice-card" data-prac="casual"><div class="pi">🗣️</div><div><h3>Gündelik konuşma</h3><p>gonna, wanna, gotta, dunno… Sokakta duyacağın kısaltılmış konuşmayı anla.</p></div><span class="reward">+5 XP</span></button>
+      <button class="practice-card" data-prac="speakcheck" ${S.progress >= 8 ? '' : 'disabled'}><div class="pi">🎯</div><div><h3>Konuşma kontrolü</h3><p>${S.progress >= 8 ? `10 cümleyi ipucusuz söyle, ilerlemeni ölç.${S.speakChecks.length ? ` Son sonuç: %${S.speakChecks[S.speakChecks.length - 1].score} (${S.speakChecks[S.speakChecks.length - 1].d})` : ' Haftada bir yapman önerilir.'}` : '2 ünite bitirince açılır.'}</p></div><span class="reward">+5 XP</span></button>
       <button class="practice-card" data-prac="grammar" ${openGrammarUnits().length && ready ? '' : 'disabled'}><div class="pi">📘</div><div><h3>Dilbilgisi tekrarı</h3><p>Öğrendiğin ${openGrammarUnits().length} konudan karışık sorular. Kuralları unutma.</p></div><span class="reward">+5 XP</span></button>
       <button class="practice-card" data-prac="weak" ${ready ? '' : 'disabled'}><div class="pi">🎯</div><div><h3>Zayıf kelimeler</h3><p>En çok zorlandığın kelimeleri tekrar et.</p></div><span class="reward">+5 XP</span></button>
       <button class="practice-card" data-prac="listen" ${ready ? '' : 'disabled'}><div class="pi">🎧</div><div><h3>Dinleme pratiği</h3><p>Duyduğun cümleleri bul ve kur, kulağını alıştır.</p></div><span class="reward">+5 XP</span></button>
@@ -1061,6 +1149,20 @@ function renderWords() {
 }
 
 // ---------- Profil sekmesi ----------
+function canDoHtml() {
+  if (typeof CAN_DO === 'undefined') return '';
+  const doneUnits = Math.min(UNITS.length, Math.floor(S.progress / LPU));
+  const done = UNITS.slice(0, doneUnits).map(u => CAN_DO[u.title]).filter(Boolean);
+  const next = UNITS.slice(doneUnits, doneUnits + 3).map(u => CAN_DO[u.title]).filter(Boolean);
+  const checks = S.speakChecks.slice(-6);
+  return `<h2 class="section-title">Artık yapabildiklerin (${done.length})</h2>
+    <div class="panel cando">
+      ${done.length ? done.slice().reverse().slice(0, 12).map(t => `<div class="cd-row ok">✓ ${esc(t)}</div>`).join('') : '<p class="muted">İlk üniteni bitirdiğinde burada yapabildiklerin listelenecek.</p>'}
+      ${done.length > 12 ? `<details><summary>${done.length - 12} tane daha</summary>${done.slice().reverse().slice(12).map(t => `<div class="cd-row ok">✓ ${esc(t)}</div>`).join('')}</details>` : ''}
+      ${next.length ? `<div class="cd-next">Sıradaki hedeflerin:</div>${next.map(t => `<div class="cd-row">○ ${esc(t)}</div>`).join('')}` : ''}
+      ${checks.length ? `<div class="cd-next">Konuşma kontrolü sonuçların:</div><div class="cd-checks">${checks.map(c => `<span><b>%${c.score}</b><small>${esc(c.d.slice(5))} · ${esc(c.lvl)}</small></span>`).join('')}</div>` : ''}
+    </div>`;
+}
 function renderProfile() {
   const days = [...Array(7)].map((_, i) => { const d = new Date(); d.setDate(d.getDate() - (6 - i)); return { label: DAYS_TR[d.getDay()], xp: S.daily[dayKey(d)] || 0, today: i === 6 }; });
   const maxXp = Math.max(S.goal, ...days.map(d => d.xp));
@@ -1083,6 +1185,7 @@ function renderProfile() {
     <div class="panel" style="margin-bottom:26px"><div class="chart">
       ${days.map(d => `<div class="col ${d.today ? 'today' : ''}"><div class="cv">${d.xp}</div><div class="colbar" style="height:${Math.round(d.xp / maxXp * 100)}%"></div><div class="cl">${d.label}</div></div>`).join('')}
     </div></div>
+    ${canDoHtml()}
     <h2 class="section-title">Başarımlar</h2>
     <div class="ach-grid">
       ${ACHIEVEMENTS.map(a => `<div class="ach ${S.achievements[a.id] ? '' : 'off'}"><div class="ai">${a.icon}</div><h4>${esc(a.title)}</h4><p>${esc(a.desc)}</p></div>`).join('')}
@@ -1090,6 +1193,8 @@ function renderProfile() {
     <h2 class="section-title">Ayarlar</h2>
     <div class="panel settings">
       <label class="setting"><div><div>Ses efektleri</div><div class="sd">Doğru/yanlış sesleri</div></div><input type="checkbox" class="toggle" id="s-sound" ${S.sound ? 'checked' : ''}></label>
+      <div class="setting"><div><div>Konuşma hızı</div><div class="sd">Dinleme seslerinin hızı. “Doğal” gerçek hayattaki gibidir.</div></div>
+        <select class="select" id="s-rate">${[['slow', 'Yavaş'], ['normal', 'Normal'], ['natural', 'Doğal']].map(([v, l]) => `<option value="${v}" ${S.rate === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
       <div class="setting"><div><div>Günlük hedef</div><div class="sd">Her gün kazanmak istediğin XP</div></div>
         <select class="select" id="s-goal">${[[10, 'Rahat'], [20, 'Normal'], [30, 'Ciddi'], [50, 'Yoğun']].map(([v, l]) => `<option value="${v}" ${S.goal === v ? 'selected' : ''}>${l} · ${v} XP</option>`).join('')}</select></div>
       <div class="setting"><div><div>Tema</div><div class="sd">Açık / koyu görünüm</div></div>
@@ -1100,6 +1205,7 @@ function renderProfile() {
   $('#pname').addEventListener('change', e => { S.name = e.target.value.trim() || 'Öğrenci'; save(); renderApp(); });
   $('#s-sound').addEventListener('change', e => { S.sound = e.target.checked; save(); });
   $('#s-goal').addEventListener('change', e => { S.goal = +e.target.value; save(); renderApp(); });
+  $('#s-rate').addEventListener('change', e => { S.rate = e.target.value; save(); speak('Hi! This is how I sound now.'); });
   $('#s-theme').addEventListener('change', e => { S.theme = e.target.value; save(); applyTheme(); });
   $('#s-place').addEventListener('click', startPlacement);
   $('#s-reset').addEventListener('click', () => {
@@ -1145,7 +1251,7 @@ function showReadingList() {
 }
 
 function startPractice(kind) {
-  if (S.progress <= 0 && kind !== 'mistakes') { toast('Önce ilk dersini tamamla!'); return; }
+  if (S.progress <= 0 && !['mistakes', 'phrases', 'casual'].includes(kind)) { toast('Önce ilk dersini tamamla!'); return; }
   const exercises = genPractice(kind);
   if (!exercises.length) { toast('Şu an çalışılacak bir şey yok.'); return; }
   startSession({ mode: 'practice', kind, exercises });
@@ -1375,6 +1481,10 @@ function finish() {
   }
   if (L.mode === 'scenario') S.abroad[L.sc.id] = Math.max(S.abroad[L.sc.id] ?? 0, Math.round((L.total - Math.min(L.mistakes, L.total)) / L.total * 100));
   if (L.mode === 'survival') S.abroad.survival = 100;
+  if (L.mode === 'practice' && L.kind === 'speakcheck') {
+    S.speakChecks.push({ d: dayKey(), score: Math.round((L.total - Math.min(L.mistakes, L.total)) / L.total * 100), lvl: currentLevel() });
+    S.speakChecks = S.speakChecks.slice(-20);
+  }
   if (L.mode === 'grammar' || (L.mode === 'lesson' && L.li === 0 && grammarOf(L.ui))) S.konu[UNITS[L.ui].title] = 1;
 
   const today = dayKey();
@@ -1797,7 +1907,7 @@ ex.mcq = item => {
 
 R.mcq = (e, root) => {
   const [before, after] = e.text.split('___');
-  root.innerHTML = `<div class="ex-kind">${e.kind === 'konu' ? '📘 Konu kontrolü' : '📐 Dilbilgisi'}</div>
+  root.innerHTML = `<div class="ex-kind">${{ konu: '📘 Konu kontrolü', akici: '💬 Akıcılık kalıbı', gundelik: '🗣️ Gündelik konuşma' }[e.kind] || '📐 Dilbilgisi'}</div>
     <h2 class="ex-title">Boşluğa uygun olanı seç</h2>
     <div class="fill-sentence">${esc(before)}<span class="blank" id="blank">&nbsp;</span>${esc(after)}</div>
     <div class="pills" style="margin-top:26px">${e.options.map((o, i) => `<button class="pill" data-key><span class="kbd">${i + 1}</span>${esc(o)}</button>`).join('')}</div>`;
@@ -1919,15 +2029,16 @@ function abroadBadge(lvl) {
 }
 
 // Senaryodaki her “sen” sırası bir egzersizdir; öncesindeki konuşma geçmiş olarak gösterilir
+const expandLines = lines => lines.flatMap(ln => ln[0] === 'v' ? expandLines(pickOne(ln[1])) : [ln]);
 function genScenario(sc) {
-  const list = [];
-  sc.lines.forEach((ln, i) => {
+  const list = [], lines = expandLines(sc.lines);
+  lines.forEach((ln, i) => {
     if (ln[0] !== 'm') return;
     const [, intent, answers, wrongs] = ln;
-    let j = i - 1; while (j >= 0 && sc.lines[j][0] === 't') j--;
+    let j = i - 1; while (j >= 0 && lines[j][0] === 't') j--;
     const right = { text: answers[0] };
     const opts = withOptions([right, ...wrongs.map(w => ({ text: w, why: `Bu cevap, “${intent}” demek istediğinde uymuyor.` }))], right);
-    list.push({ type: 'role', sc, history: sc.lines.slice(0, j + 1), them: sc.lines.slice(j + 1, i), intent, answers, ...opts,
+    list.push({ type: 'role', sc, history: lines.slice(0, j + 1), them: lines.slice(j + 1, i), intent, answers, ...opts,
       audio: answers[0], answerText: answers[0], meaning: intent, words: [],
       explain: answers.length > 1 ? `Şöyle de diyebilirsin: “${answers.slice(1).join('” · “')}”` : '' });
   });
