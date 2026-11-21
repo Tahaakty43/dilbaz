@@ -11,6 +11,8 @@ Oyunlaştırılmış, tarayıcıda çalışan bir İngilizce öğrenme uygulamas
 - 1030 kelime, 902 örnek cümle, 589 gerçek hayat diyaloğu
 - **Konu anlatımı:** 103 ünitenin her birinde adım adım dilbilgisi dersi (her ünitede 3 adım, tablolar, sesli örnek cümleler, Türk öğrencilerin sık yaptığı hatalar) ve 4 konu sorusu. Ünitenin ilk dersi konu anlatımıyla başlar; “Konu” düğmesiyle istenince tekrar açılır
 - **Konuşma pratiği:** Cümleyi dinleyip sesli tekrar etme, Türkçesini görüp İngilizce söyleme ve diyaloglarda sesli cevap verme. Telaffuz, tarayıcının ses tanıma özelliğiyle kontrol edilir; ses tanıma desteklenmiyorsa “kendin kontrol et” modu açılır. Mikrofon isteğe bağlıdır, “Şu an konuşamıyorum” ile atlanabilir
+- **Yurt dışı sekmesi:** 25 gerçek hayat senaryosu (kafe, taksi, otel, pasaport kontrolü, eczane, kayıp bagaj, komşuyla sohbet, polis, iş görüşmesi, uçuş iptali, kira pazarlığı…). Karşı taraf doğal hızda konuşur, kullanıcı birkaç tur süren konuşmada sesli cevap verir; farklı doğru cevaplar kabul edilir, istenirse seçeneklerle cevaplanır. Senaryolar seviye geldikçe açılır
+- **Hayat kurtaran kalıplar:** anlamadığında, kelimeyi bilmediğinde ya da takıldığında konuşmayı sürdürme stratejileri
 - Dilbilgisi tekrarı: açılan konulardan karışık sorular
 - Okuma bölümü: her ünite için kısa bir hikâye (103 hikâye), cümle cümle Türkçe çeviri, sesli okuma ve 3 anlama sorusu
 - Tamamen tıklamalı egzersizler (klavye ve mikrofon gerekmez): resimli kelime, anlam seçme, kelime kartlarıyla cümle kurma, doğru çeviriyi bulma, dinleyip cümle/kelime seçme, boşluk doldurma, eşleştirme, gerçek hayat diyalogları
@@ -34,6 +36,7 @@ Sesli konuşma kontrolü Chrome, Edge ve Android Chrome'da çalışır ve intern
 - `js/data.js`, `js/data-a2.js`, `js/data-b1.js`, `js/data-more.js`, `js/data-more2.js`, `js/data-b2.js`, `js/data-a1x.js`, `js/data-a2x.js`, `js/data-b1x.js`, `js/data-b2x.js`, `js/data-c1.js` — ders içerikleri
 - `js/stories.js`, `js/stories-x.js` — okuma parçaları
 - `js/grammar-a1.js`, `js/grammar-a2.js`, `js/grammar-b1.js`, `js/grammar-b2c1.js` — konu anlatımları ve konu soruları
+- `js/abroad.js` — yurt dışı senaryoları ve hayat kurtaran kalıplar
 - `js/placement.js` — seviye tespit soru bankası
 - `js/app.js` — uygulama ve ders motoru
 - `css/style.css` — tasarım
