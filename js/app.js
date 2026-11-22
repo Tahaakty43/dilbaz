@@ -1636,7 +1636,7 @@ R.pick = (e, root) => {
 R.choice = (e, root) => {
   root.innerHTML = `<div class="ex-kind">📝 Anlamını seç</div>
     <h2 class="ex-title">Bu kelimenin anlamı ne?</h2>
-    <div class="word-hero"><button class="speaker" data-say aria-label="Dinle">${ICON.speaker}</button><span class="w">${esc(e.word.en)}</span><span class="e">${e.word.emoji || ''}</span></div>
+    <div class="word-hero"><button class="speaker" data-say aria-label="Dinle">${ICON.speaker}</button><span class="w">${esc(e.word.en)}</span></div>
     <div class="opts">${e.options.map((o, i) => `<button class="opt" data-key><span class="kbd">${i + 1}</span>${esc(o)}</button>`).join('')}</div>`;
   $('[data-say]', root).addEventListener('click', () => speak(e.word.en));
   speak(e.word.en);
